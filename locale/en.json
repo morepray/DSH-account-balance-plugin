@@ -1,0 +1,20 @@
+{
+  "meta": {
+    "title": "Account Balance",
+    "description": "Shows the DeepSeek account balance and today's spend at the bottom of the sidebar, with a configurable refresh interval."
+  },
+  "balance": {
+    "label": "Balance",
+    "loading": "Loading…",
+    "signedOut": "Not signed in",
+    "failed": "Retry",
+    "empty": "—",
+    "bonus": "Bonus credit",
+    "refreshHint": "Click to refresh",
+    "aria": "Account balance",
+    "ariaValue": "Account balance: {amount}. Click to refresh.",
+    "ariaLoading": "Account balance is loading",
+    "ariaSignedOut": "Account balance unavailable: not signed in",
+    "ariaFailed": "Account balance could not be read. Click to retry."
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "meta": {
+    "title": "账户余额",
+    "description": "在左侧栏底部显示 DeepSeek 账户余额和今日已用金额，并可设置自动刷新间隔。"
+  },
+  "balance": {
+    "label": "余额",
+    "loading": "读取中…",
+    "signedOut": "未登录",
+    "failed": "重试",
+    "empty": "—",
+    "bonus": "赠送余额",
+    "refreshHint": "点击刷新",
+    "aria": "账户余额",
+    "ariaValue": "账户余额：{amount}。点击刷新。",
+    "ariaLoading": "正在读取账户余额",
+    "ariaSignedOut": "账户余额不可用：未登录",
+    "ariaFailed": "账户余额读取失败，点击重试"
+  }
+}
