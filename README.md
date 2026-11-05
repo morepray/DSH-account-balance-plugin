@@ -80,14 +80,24 @@ dsh plugin --profile desktop add link:"D:\dsh-plugins\account-balance"
 - 输入 `0` 关闭自动刷新
 - 点击余额卡片可手动刷新
 
+## 检查更新
+
+打开 **设置 → 余额与用量**，在“插件更新”一行点击 **检查更新**。
+
+- 插件会读取 GitHub `main` 分支上的 `package.json`，与当前安装版本比较
+- 只做提示，不会自动覆盖安装
+- 发现新版本时，会显示版本号和 GitHub 链接；到 **Plugins** 页面卸载旧版本后重新安装即可
+- 更新插件时请同步修改 `package.json` 的 `version`，否则检查会认为已是最新
+
 ## 更新
 
 GitHub 安装的版本更新时：
 
-1. 在 GitHub 推送新的 commit；
-2. 在 DSH 的 **Plugins** 页面找到旧版本并卸载；
-3. 用新的完整 commit SHA 重新安装；
-4. 重启 DSH。
+1. 修改 `package.json` 的 `version`，在 GitHub 推送新的 commit；
+2. 在 DSH 的 **设置 → 余额与用量** 点击 **检查更新** 确认版本；
+3. 在 **Plugins** 页面找到旧版本并卸载；
+4. 用新的完整 commit SHA 重新安装；
+5. 重启 DSH。
 
 本插件的客户端代码没有构建步骤，重新安装或重启后会加载新文件。
 
@@ -96,6 +106,7 @@ GitHub 安装的版本更新时：
 - 余额通过 DSH 现有的 `account` Remote 读取。
 - 今日已用由 Host 侧路由 `/account-balance/usage` 读取 Platform 用量接口，使用当前 DeepSeek 账户登录态；token 只在 Host 进程内使用，不进入浏览器。
 - 该路由只接受本机回环、同源请求。
+- “检查更新”只读取本仓库公开的 `package.json`，不发送账户凭据。
 - 所有读取都是只读查询，**不会扣除余额**；只有实际调用模型才会产生费用。
 
 ## 已知限制
@@ -109,7 +120,7 @@ GitHub 安装的版本更新时：
 
 本插件没有构建步骤，纯 JavaScript 文件：
 
-- `index.js`：Host 半部分，登记用量路由
+- `index.js`：Host 半部分，登记用量和检查更新路由
 - `client.js`：侧栏卡片、设置页和定时刷新
 - `cordis.patch.yml`：bundle 的插件行
 - `locale/*.json`：插件管理页显示元数据

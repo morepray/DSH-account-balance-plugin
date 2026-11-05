@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 /**
  * Host half of the account-balance bundle.
  *
@@ -7,17 +9,40 @@
  * loopback-only, same-origin route that reads the current Platform session and
  * sums that endpoint's cost buckets for the requested local day. The token is
  * used in-process only and never leaves the Host.
+ *
+ * A second route reads this repository's published package.json so the
+ * settings page can compare the installed release with GitHub.
  */
 
 export const inject = ['deepseekAccount', 'webServer'];
 
 const USAGE_PATH = '/account-balance/usage';
+const UPDATE_PATH = '/account-balance/update';
 const COST_PATH = '/api/v0/usage/by_api_key/cost';
+const REPO_URL = 'https://github.com/morepray/DSH-account-balance-plugin';
+const REMOTE_PACKAGE_URLS = [
+  'https://raw.githubusercontent.com/morepray/DSH-account-balance-plugin/main/package.json',
+  'https://cdn.jsdelivr.net/gh/morepray/DSH-account-balance-plugin@main/package.json',
+];
 const CACHE_TTL_MS = 30_000;
 const REQUEST_TIMEOUT_MS = 15_000;
+const UPDATE_TIMEOUT_MS = 10_000;
 const MAX_WINDOW_SECONDS = 90_000;
 
 let cache;
+let updateCache;
+let localVersion;
+
+function currentVersion() {
+  if (localVersion !== undefined) return localVersion;
+  try {
+    const value = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
+    localVersion = typeof value.version === 'string' && value.version !== '' ? value.version : null;
+  } catch {
+    localVersion = null;
+  }
+  return localVersion;
+}
 
 function json(res, status, body) {
   const text = JSON.stringify(body);
@@ -154,7 +179,87 @@ async function readUsage(account, start, end, tz) {
   return value;
 }
 
+async function readUpdate(force) {
+  if (!force && updateCache !== undefined && Date.now() - updateCache.at < CACHE_TTL_MS) {
+    return updateCache.value;
+  }
+
+  const current = currentVersion();
+  if (current === null) return { ok: false, code: 'version' };
+
+  for (const base of REMOTE_PACKAGE_URLS) {
+    const url = new URL(base);
+    url.searchParams.set('cb', String(Date.now()));
+    let response;
+    try {
+      response = await fetch(url, {
+        headers: {
+          accept: 'application/json',
+          'cache-control': 'no-cache',
+        },
+        redirect: 'manual',
+        signal: AbortSignal.timeout(UPDATE_TIMEOUT_MS),
+      });
+    } catch {
+      continue;
+    }
+    if (response.status !== 200) continue;
+
+    let remote;
+    try {
+      remote = await response.json();
+    } catch {
+      continue;
+    }
+    if (typeof remote?.version !== 'string' || remote.version === '') continue;
+
+    const value = {
+      ok: true,
+      data: {
+        currentVersion: current,
+        latestVersion: remote.version,
+        repoUrl: REPO_URL,
+        checkedAt: Date.now(),
+      },
+    };
+    updateCache = { at: Date.now(), value };
+    return value;
+  }
+
+  return { ok: false, code: 'network' };
+}
+
 export function apply(ctx) {
+  ctx.effect(
+    () => ctx.webServer.register({
+      kind: 'exact',
+      path: UPDATE_PATH,
+      handler: async (req, res) => {
+        if (!isLocalRequest(req)) {
+          json(res, 403, { ok: false, code: 'forbidden' });
+          return;
+        }
+        if (req.method !== 'GET') {
+          json(res, 405, { ok: false, code: 'method' });
+          return;
+        }
+        let force = false;
+        try {
+          force = new URL(req.url ?? '/', 'http://local').searchParams.get('force') === '1';
+        } catch {
+          force = false;
+        }
+        try {
+          json(res, 200, await readUpdate(force));
+        } catch {
+          console.error('[account-balance] update check failed');
+          json(res, 200, { ok: false, code: 'failed' });
+        }
+      },
+    }),
+    'account-balance: update route',
+  );
+
   ctx.effect(
     () => ctx.webServer.register({
       kind: 'exact',

@@ -12,6 +12,8 @@ window.__ModuleLoader__.load({
     const SETTINGS_SLOT = 'settings.section';
     /** Host route that reads today's Platform spend. */
     const USAGE_PATH = '/account-balance/usage';
+    /** Host route that reads this repository's published version. */
+    const UPDATE_PATH = '/account-balance/update';
     /** The account Remote sends this client identity with each Platform read. */
     const CLIENT_VERSION = '0.2.1-rc.5';
     /** Browser-local preference: seconds between automatic balance reads; 0 = off. */
@@ -43,6 +45,16 @@ window.__ModuleLoader__.load({
       'settings.description': 'Seconds between automatic balance and today\'s-spend reads; 0 turns auto-refresh off.',
       'settings.unit': 'seconds',
       'settings.invalid': 'Enter a whole number from 0 to 3600.',
+      'update.title': 'Plugin update',
+      'update.check': 'Check for updates',
+      'update.checking': 'Checking…',
+      'update.idle': 'Check GitHub for a newer release.',
+      'update.latest': 'Up to date (v{version}).',
+      'update.available': 'New version v{latest} is available (current v{current}).',
+      'update.ahead': 'Local version v{current} is newer than GitHub v{latest}.',
+      'update.failed': 'Update check failed. Try again later.',
+      'update.hint': 'Uninstall the old version on the Plugins page, then install the new one.',
+      'update.open': 'Open GitHub',
     };
 
     const zh = {
@@ -69,6 +81,16 @@ window.__ModuleLoader__.load({
       'settings.description': '自动读取余额和今日用量的间隔（秒）；0 表示关闭。',
       'settings.unit': '秒',
       'settings.invalid': '请输入 0–3600 之间的整数。',
+      'update.title': '插件更新',
+      'update.check': '检查更新',
+      'update.checking': '检查中…',
+      'update.idle': '检查 GitHub 上是否有新版本。',
+      'update.latest': '已是最新版本（v{version}）。',
+      'update.available': '发现新版本 v{latest}（当前 v{current}）。',
+      'update.ahead': '本地版本 v{current} 比 GitHub 上的 v{latest} 新。',
+      'update.failed': '检查失败，请稍后重试。',
+      'update.hint': '请到 Plugins 页面卸载旧版本后重新安装。',
+      'update.open': '打开 GitHub',
     };
 
     const css = `
@@ -244,6 +266,35 @@ window.__ModuleLoader__.load({
   outline-offset: 1px;
 }
 .ab-setting-unit { white-space: nowrap; }
+.ab-update-button {
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 12px;
+  border: .5px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ab-update-button:hover:not(:disabled) { background: var(--dsw-alias-bg-layer-2); }
+.ab-update-button:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 1px;
+}
+.ab-update-button:disabled { opacity: .55; cursor: default; }
+.ab-update-link {
+  color: var(--dsw-alias-brand-primary);
+  font-size: 12px;
+  line-height: 18px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.ab-update-link:hover { text-decoration: underline; }
+.ab-update-available { color: var(--dsw-alias-state-success-primary); }
+.ab-update-failed { color: var(--dsw-alias-state-error-primary); }
+.ab-update-copy { cursor: default; }
 @keyframes ab-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 @media (prefers-reduced-motion: reduce) {
   .ab-button[data-refreshing="true"] .ab-icon { animation: none; }
@@ -328,6 +379,30 @@ window.__ModuleLoader__.load({
           strokeLinejoin: 'round',
         }),
       );
+    }
+
+    function parseVersion(value) {
+      const match = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/.exec(String(value).trim());
+      if (match === null) return null;
+      return {
+        major: Number(match[1]),
+        minor: Number(match[2]),
+        patch: Number(match[3]),
+        pre: match[4] ?? '',
+      };
+    }
+
+    function compareVersions(left, right) {
+      const a = parseVersion(left);
+      const b = parseVersion(right);
+      if (a === null || b === null) return 0;
+      if (a.major !== b.major) return a.major - b.major;
+      if (a.minor !== b.minor) return a.minor - b.minor;
+      if (a.patch !== b.patch) return a.patch - b.patch;
+      if (a.pre === b.pre) return 0;
+      if (a.pre === '') return 1;
+      if (b.pre === '') return -1;
+      return a.pre < b.pre ? -1 : 1;
     }
 
     function clampIntervalSeconds(value) {
@@ -713,6 +788,8 @@ window.__ModuleLoader__.load({
       const state = React.useSyncExternalStore(subscribe, getSnapshot);
       const [draft, setDraft] = React.useState(String(state.intervalSeconds));
       const [invalid, setInvalid] = React.useState(false);
+      const [checking, setChecking] = React.useState(false);
+      const [update, setUpdate] = React.useState({ status: 'idle' });
 
       React.useEffect(() => {
         setDraft(String(state.intervalSeconds));
@@ -734,6 +811,54 @@ window.__ModuleLoader__.load({
         setInvalid(false);
         setIntervalSeconds(value);
       };
+
+      const checkForUpdate = async () => {
+        if (checking) return;
+        setChecking(true);
+        setUpdate({ status: 'checking' });
+        try {
+          const response = await fetch(`${UPDATE_PATH}?force=1`, {
+            headers: { accept: 'application/json' },
+            credentials: 'same-origin',
+            cache: 'no-store',
+          });
+          if (!response.ok) throw new Error('update http failed');
+          const payload = await response.json();
+          if (!payload?.ok || !payload.data) throw new Error('update read failed');
+          const data = payload.data;
+          const comparison = compareVersions(data.latestVersion, data.currentVersion);
+          setUpdate({
+            status: comparison > 0 ? 'available' : comparison < 0 ? 'ahead' : 'latest',
+            ...data,
+          });
+        } catch {
+          setUpdate({ status: 'failed' });
+        } finally {
+          setChecking(false);
+        }
+      };
+
+      let updateMessage = t('update.idle');
+      let updateClass = 'ab-setting-description';
+      if (update.status === 'checking') {
+        updateMessage = t('update.checking');
+      } else if (update.status === 'latest') {
+        updateMessage = t('update.latest', { version: update.latestVersion });
+      } else if (update.status === 'available') {
+        updateMessage = t('update.available', {
+          latest: update.latestVersion,
+          current: update.currentVersion,
+        });
+        updateClass += ' ab-update-available';
+      } else if (update.status === 'ahead') {
+        updateMessage = t('update.ahead', {
+          current: update.currentVersion,
+          latest: update.latestVersion,
+        });
+      } else if (update.status === 'failed') {
+        updateMessage = t('update.failed');
+        updateClass += ' ab-update-failed';
+      }
 
       return h(
         'div',
@@ -785,6 +910,54 @@ window.__ModuleLoader__.load({
               },
             }),
             h('span', { className: 'ab-setting-unit' }, t('settings.unit')),
+          ),
+        ),
+        h(
+          'div',
+          { className: 'ab-setting-row' },
+          h(
+            'div',
+            { className: 'ab-setting-copy ab-update-copy' },
+            h('span', { className: 'ab-setting-title' }, t('update.title')),
+            h(
+              'span',
+              {
+                className: updateClass,
+                role: update.status === 'failed' ? 'alert' : 'status',
+                'aria-live': 'polite',
+              },
+              updateMessage,
+            ),
+            update.status === 'available'
+              ? h('span', { className: 'ab-setting-description' }, t('update.hint'))
+              : null,
+          ),
+          h(
+            'span',
+            { className: 'ab-setting-control' },
+            update.status === 'available' && update.repoUrl
+              ? h(
+                  'a',
+                  {
+                    className: 'ab-update-link',
+                    href: update.repoUrl,
+                    target: '_blank',
+                    rel: 'noopener noreferrer',
+                  },
+                  t('update.open'),
+                )
+              : null,
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'ab-update-button',
+                disabled: checking,
+                'aria-busy': checking ? 'true' : undefined,
+                onClick: checkForUpdate,
+              },
+              checking ? t('update.checking') : t('update.check'),
+            ),
           ),
         ),
       );
