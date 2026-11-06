@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "账户余额",
-    "description": "在左侧栏底部显示 DeepSeek 账户余额和今日已用金额，并可设置自动刷新间隔。"
+    "description": "在左侧栏底部显示 DeepSeek 账户余额和今日已用金额；右键卡片打开设置与更新菜单。"
   },
   "balance": {
     "label": "余额",

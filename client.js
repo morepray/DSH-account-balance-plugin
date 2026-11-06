@@ -8,18 +8,20 @@ window.__ModuleLoader__.load({
     const NS = 'accountBalance';
     /** Sidebar-foot list beside Settings. */
     const SLOT = 'sidebar.footer.action';
-    /** Settings page that owns the auto-refresh preference. */
-    const SETTINGS_SLOT = 'settings.section';
     /** Host route that reads today's Platform spend. */
     const USAGE_PATH = '/account-balance/usage';
     /** Host route that reads this repository's published version. */
     const UPDATE_PATH = '/account-balance/update';
     /** The account Remote sends this client identity with each Platform read. */
     const CLIENT_VERSION = '0.2.1-rc.5';
+    /** Keep this in sync with package.json when publishing a release. */
+    const PLUGIN_VERSION = '1.5.2';
     /** Browser-local preference: seconds between automatic balance reads; 0 = off. */
     const INTERVAL_KEY = 'dsh.account-balance.refresh-seconds.v1';
     const DEFAULT_INTERVAL_SECONDS = 60;
     const MAX_INTERVAL_SECONDS = 3600;
+    const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+    const UPDATE_ATTEMPT_GAP_MS = 60_000;
 
     const en = {
       'balance.label': 'Balance',
@@ -33,6 +35,7 @@ window.__ModuleLoader__.load({
       'balance.autoRefresh': 'Auto-refresh',
       'balance.everySeconds': 'every {seconds}s',
       'balance.refreshHint': 'Click to refresh',
+      'balance.contextHint': 'Right-click for settings and updates',
       'balance.aria': 'Account balance',
       'balance.ariaValue': 'Account balance: {amount}. Click to refresh.',
       'balance.ariaValueWithUsage': 'Account balance: {amount}. Today used: {usage}. Click to refresh.',
@@ -40,8 +43,6 @@ window.__ModuleLoader__.load({
       'balance.ariaSignedOut': 'Account balance unavailable: not signed in',
       'balance.ariaFailed': 'Account balance could not be read. Click to retry.',
       'settings.title': 'Auto-refresh',
-      'settings.nav': 'Balance & usage',
-      'settings.pageDescription': 'Controls how often the balance and today\'s spend in the sidebar card refresh.',
       'settings.description': 'Seconds between automatic balance and today\'s-spend reads; 0 turns auto-refresh off.',
       'settings.unit': 'seconds',
       'settings.invalid': 'Enter a whole number from 0 to 3600.',
@@ -51,10 +52,16 @@ window.__ModuleLoader__.load({
       'update.idle': 'Check GitHub for a newer release.',
       'update.latest': 'Up to date (v{version}).',
       'update.available': 'New version v{latest} is available (current v{current}).',
+      'update.availableShort': 'Update available: v{version}',
       'update.ahead': 'Local version v{current} is newer than GitHub v{latest}.',
       'update.failed': 'Update check failed. Try again later.',
       'update.hint': 'Uninstall the old version on the Plugins page, then install the new one.',
       'update.open': 'Open GitHub',
+      'update.openPlugins': 'Update in Plugins',
+      'update.autoCheck': 'Checks GitHub every 6 hours.',
+      'menu.title': 'Balance & usage',
+      'menu.close': 'Close',
+      'menu.footer': 'Click the card to refresh · Right-click to reopen',
     };
 
     const zh = {
@@ -69,6 +76,7 @@ window.__ModuleLoader__.load({
       'balance.autoRefresh': '自动刷新',
       'balance.everySeconds': '每 {seconds} 秒',
       'balance.refreshHint': '点击刷新',
+      'balance.contextHint': '右键打开设置与更新',
       'balance.aria': '账户余额',
       'balance.ariaValue': '账户余额：{amount}。点击刷新。',
       'balance.ariaValueWithUsage': '账户余额：{amount}。今日已用：{usage}。点击刷新。',
@@ -76,8 +84,6 @@ window.__ModuleLoader__.load({
       'balance.ariaSignedOut': '账户余额不可用：未登录',
       'balance.ariaFailed': '账户余额读取失败，点击重试',
       'settings.title': '自动刷新',
-      'settings.nav': '余额与用量',
-      'settings.pageDescription': '控制左下角余额卡片中余额和今日用量的刷新频率。',
       'settings.description': '自动读取余额和今日用量的间隔（秒）；0 表示关闭。',
       'settings.unit': '秒',
       'settings.invalid': '请输入 0–3600 之间的整数。',
@@ -87,10 +93,16 @@ window.__ModuleLoader__.load({
       'update.idle': '检查 GitHub 上是否有新版本。',
       'update.latest': '已是最新版本（v{version}）。',
       'update.available': '发现新版本 v{latest}（当前 v{current}）。',
+      'update.availableShort': '发现新版本：v{version}',
       'update.ahead': '本地版本 v{current} 比 GitHub 上的 v{latest} 新。',
       'update.failed': '检查失败，请稍后重试。',
       'update.hint': '请到 Plugins 页面卸载旧版本后重新安装。',
       'update.open': '打开 GitHub',
+      'update.openPlugins': '去 Plugins 更新',
+      'update.autoCheck': '每 6 小时自动检查一次 GitHub。',
+      'menu.title': '余额与用量',
+      'menu.close': '关闭',
+      'menu.footer': '左键刷新 · 右键重新打开',
     };
 
     const css = `
@@ -103,6 +115,7 @@ window.__ModuleLoader__.load({
   margin: 8px -2px 0;
   padding: 0 10px 0 8px;
   display: inline-flex;
+  position: relative;
   align-items: center;
   gap: 8px;
   overflow: hidden;
@@ -208,93 +221,141 @@ window.__ModuleLoader__.load({
   letter-spacing: -0.02em;
 }
 .ab-railButton[data-phase="error"] .ab-railAmount { color: var(--dsw-alias-state-error-primary); }
-.ab-setting-row {
-  border-bottom: .5px solid var(--dsw-alias-border-l2);
-  justify-content: space-between;
-  align-items: center;
-  gap: 24px;
-  padding: 16px 0;
-  display: flex;
-}
-.ab-page { display: flex; flex-direction: column; gap: 8px; padding: 8px 0 0; }
-.ab-page-intro {
-  color: var(--dsw-alias-label-secondary);
-  margin: 0 0 4px;
-  font-size: 13px;
-  line-height: 20px;
-}
-.ab-page > .ab-setting-row:last-child { border-bottom: none; }
-.ab-setting-copy { display: flex; flex-direction: column; min-width: 0; cursor: pointer; }
-.ab-setting-title { color: var(--dsw-alias-label-primary); font-size: 14px; line-height: 20px; }
-.ab-setting-description {
-  color: var(--dsw-alias-label-secondary);
-  margin-top: 4px;
-  font-size: 12px;
-  line-height: 18px;
-}
-.ab-setting-error {
-  color: var(--dsw-alias-state-error-primary);
-  margin-top: 4px;
-  font-size: 12px;
-  line-height: 18px;
-}
-.ab-setting-control {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: none;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
-  line-height: 22px;
-}
-.ab-setting-input {
+.ab-menu-layer { position: fixed; inset: 0; z-index: 1200; pointer-events: auto; }
+.ab-menu {
+  position: fixed;
   box-sizing: border-box;
-  width: 76px;
-  height: 32px;
-  padding: 0 8px;
+  max-height: calc(100vh - 16px);
+  padding: 12px;
+  overflow-y: auto;
+  border: .5px solid var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-overlay);
+  box-shadow: var(--dsw-elevation-prominent);
+  backdrop-filter: var(--dsw-menu-backdrop-filter, blur(18px));
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+}
+.ab-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+}
+.ab-menu-title { font-size: 13px; font-weight: 500; line-height: 18px; }
+.ab-menu-close {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 18px;
+  line-height: 22px;
+  cursor: pointer;
+}
+.ab-menu-close:hover { background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); }
+.ab-menu-close:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 1px; }
+.ab-menu-body { display: flex; flex-direction: column; }
+.ab-menu-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: .5px solid var(--dsw-alias-border-l1);
+}
+.ab-menu-row:first-child { border-top: 0; }
+.ab-menu-copy { flex: 1; min-width: 0; }
+.ab-menu-label { font-size: 13px; line-height: 18px; }
+.ab-menu-hint {
+  color: var(--dsw-alias-label-secondary);
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 16px;
+}
+.ab-menu-error {
+  color: var(--dsw-alias-state-error-primary);
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 16px;
+}
+.ab-menu-control { flex: none; display: flex; align-items: center; gap: 4px; }
+.ab-menu-input {
+  box-sizing: border-box;
+  width: 64px;
+  height: 28px;
+  padding: 0 6px;
   border: .5px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.ab-setting-input:focus-visible {
+.ab-menu-input:focus-visible {
   outline: 2px solid var(--dsw-alias-brand-primary);
   outline-offset: 1px;
 }
-.ab-setting-unit { white-space: nowrap; }
-.ab-update-button {
-  box-sizing: border-box;
-  height: 32px;
-  padding: 0 12px;
+.ab-menu-unit { color: var(--dsw-alias-label-secondary); font-size: 12px; white-space: nowrap; }
+.ab-menu-actions {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.ab-menu-button {
+  height: 28px;
+  padding: 0 10px;
   border: .5px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
+  white-space: nowrap;
   cursor: pointer;
 }
-.ab-update-button:hover:not(:disabled) { background: var(--dsw-alias-bg-layer-2); }
-.ab-update-button:focus-visible {
-  outline: 2px solid var(--dsw-alias-brand-primary);
-  outline-offset: 1px;
-}
-.ab-update-button:disabled { opacity: .55; cursor: default; }
-.ab-update-link {
+.ab-menu-button:hover:not(:disabled) { background: var(--dsw-alias-bg-layer-2); }
+.ab-menu-button:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 1px; }
+.ab-menu-button:disabled { opacity: .55; cursor: default; }
+.ab-menu-button-primary { border-color: var(--dsw-alias-brand-primary); color: var(--dsw-alias-brand-primary); }
+.ab-menu-link {
+  display: inline-block;
+  margin-top: 4px;
   color: var(--dsw-alias-brand-primary);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: 11px;
+  line-height: 16px;
   text-decoration: none;
-  white-space: nowrap;
 }
-.ab-update-link:hover { text-decoration: underline; }
+.ab-menu-link:hover { text-decoration: underline; }
+.ab-menu-footer {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: .5px solid var(--dsw-alias-border-l1);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+}
 .ab-update-available { color: var(--dsw-alias-state-success-primary); }
 .ab-update-failed { color: var(--dsw-alias-state-error-primary); }
-.ab-update-copy { cursor: default; }
+.ab-update-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dsw-alias-state-warn-primary);
+  box-shadow: 0 0 0 2px var(--dsw-specific-sidebar-fill);
+}
+.ab-railButton .ab-update-dot { top: 4px; right: 4px; }
 @keyframes ab-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 @media (prefers-reduced-motion: reduce) {
   .ab-button[data-refreshing="true"] .ab-icon { animation: none; }
@@ -672,8 +733,120 @@ window.__ModuleLoader__.load({
       };
     }
 
-    function AccountBalance({ wide, t, subscribe, getSnapshot, refresh }) {
+    function createUpdateStore(ctx) {
+      let state = {
+        status: 'idle',
+        currentVersion: null,
+        latestVersion: null,
+        repoUrl: null,
+        checkedAt: 0,
+      };
+      const listeners = new Set();
+      let inflight;
+      let lastAttempt = 0;
+
+      const emit = (next) => {
+        state = next;
+        for (const listener of listeners) listener();
+      };
+
+      const subscribe = (listener) => {
+        listeners.add(listener);
+        return () => {
+          listeners.delete(listener);
+        };
+      };
+
+      const getSnapshot = () => state;
+
+      const check = (force = false) => {
+        if (inflight !== undefined) return inflight;
+        if (!force && Date.now() - lastAttempt < UPDATE_ATTEMPT_GAP_MS) {
+          return Promise.resolve(state);
+        }
+        lastAttempt = Date.now();
+        emit({ ...state, status: 'checking' });
+
+        inflight = (async () => {
+          try {
+            const response = await fetch(`${UPDATE_PATH}?force=1`, {
+              headers: { accept: 'application/json' },
+              credentials: 'same-origin',
+              cache: 'no-store',
+            });
+            if (!response.ok) throw new Error('update http failed');
+            const payload = await response.json();
+            if (!payload?.ok || !payload.data) throw new Error('update read failed');
+            const data = payload.data;
+            const comparison = compareVersions(data.latestVersion, PLUGIN_VERSION);
+            emit({
+              status: comparison > 0 ? 'available' : comparison < 0 ? 'ahead' : 'latest',
+              currentVersion: PLUGIN_VERSION,
+              latestVersion: data.latestVersion ?? null,
+              repoUrl: data.repoUrl ?? null,
+              checkedAt: Date.now(),
+            });
+          } catch {
+            emit({ ...state, status: 'failed', checkedAt: Date.now() });
+          } finally {
+            inflight = undefined;
+          }
+        })();
+
+        return inflight;
+      };
+
+      ctx.effect(() => {
+        void check(false);
+        const timer = setInterval(() => {
+          void check(false);
+        }, UPDATE_CHECK_INTERVAL_MS);
+        return () => clearInterval(timer);
+      }, 'account-balance: update checks');
+
+      return { subscribe, getSnapshot, check };
+    }
+
+    function createMenuStore() {
+      let state = { open: false, x: 0, y: 0 };
+      const listeners = new Set();
+
+      const emit = (next) => {
+        state = next;
+        for (const listener of listeners) listener();
+      };
+
+      return {
+        subscribe(listener) {
+          listeners.add(listener);
+          return () => {
+            listeners.delete(listener);
+          };
+        },
+        getSnapshot() {
+          return state;
+        },
+        open(x, y) {
+          emit({ open: true, x, y });
+        },
+        close() {
+          if (state.open) emit({ ...state, open: false });
+        },
+      };
+    }
+
+    function AccountBalance({
+      wide,
+      t,
+      subscribe,
+      getSnapshot,
+      refresh,
+      updateSubscribe,
+      updateGetSnapshot,
+      openMenu,
+    }) {
       const state = React.useSyncExternalStore(subscribe, getSnapshot);
+      const updateState = React.useSyncExternalStore(updateSubscribe, updateGetSnapshot);
       const phase = state.phase;
       const amount = phase === 'ready'
         ? formatWallets(state.wallets) || t('balance.empty')
@@ -707,7 +880,11 @@ window.__ModuleLoader__.load({
         ...(state.intervalSeconds > 0
           ? [`${t('balance.autoRefresh')}: ${t('balance.everySeconds', { seconds: state.intervalSeconds })}`]
           : []),
+        ...(updateState.status === 'available' && updateState.latestVersion
+          ? [t('update.availableShort', { version: updateState.latestVersion })]
+          : []),
         t('balance.refreshHint'),
+        t('balance.contextHint'),
       ].join('\n');
       const aria = phase === 'ready'
         ? t('balance.ariaValueWithUsage', {
@@ -740,6 +917,18 @@ window.__ModuleLoader__.load({
               'data-refreshing': state.refreshing ? 'true' : undefined,
               onClick: () => {
                 if (!state.refreshing) refresh();
+              },
+              onContextMenu: (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                openMenu(event.clientX, event.clientY);
+              },
+              onKeyDown: (event) => {
+                if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+                  event.preventDefault();
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  openMenu(rect.left, rect.top);
+                }
               },
             },
             h(CoinIcon, { size: wide ? 16 : 15 }),
@@ -779,22 +968,50 @@ window.__ModuleLoader__.load({
                         ? '—'
                         : '!',
                 ),
+            updateState.status === 'available'
+              ? h('span', { className: 'ab-update-dot', 'aria-hidden': 'true' })
+              : null,
           ),
         ),
       );
     }
 
-    function BalanceSettingsPage({ t, subscribe, getSnapshot, setIntervalSeconds }) {
+    function BalanceMenu({
+      t,
+      subscribe,
+      getSnapshot,
+      setIntervalSeconds,
+      menuSubscribe,
+      menuGetSnapshot,
+      menuClose,
+      updateSubscribe,
+      updateGetSnapshot,
+      updateCheck,
+      openPlugins,
+    }) {
       const state = React.useSyncExternalStore(subscribe, getSnapshot);
+      const menu = React.useSyncExternalStore(menuSubscribe, menuGetSnapshot);
+      const update = React.useSyncExternalStore(updateSubscribe, updateGetSnapshot);
       const [draft, setDraft] = React.useState(String(state.intervalSeconds));
       const [invalid, setInvalid] = React.useState(false);
-      const [checking, setChecking] = React.useState(false);
-      const [update, setUpdate] = React.useState({ status: 'idle' });
 
       React.useEffect(() => {
         setDraft(String(state.intervalSeconds));
         setInvalid(false);
       }, [state.intervalSeconds]);
+
+      React.useEffect(() => {
+        if (!menu.open) return undefined;
+        void updateCheck(false);
+        const onKeyDown = (event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            menuClose();
+          }
+        };
+        document.addEventListener('keydown', onKeyDown);
+        return () => document.removeEventListener('keydown', onKeyDown);
+      }, [menu.open, menuClose, updateCheck]);
 
       const commit = () => {
         const raw = draft.trim();
@@ -812,34 +1029,10 @@ window.__ModuleLoader__.load({
         setIntervalSeconds(value);
       };
 
-      const checkForUpdate = async () => {
-        if (checking) return;
-        setChecking(true);
-        setUpdate({ status: 'checking' });
-        try {
-          const response = await fetch(`${UPDATE_PATH}?force=1`, {
-            headers: { accept: 'application/json' },
-            credentials: 'same-origin',
-            cache: 'no-store',
-          });
-          if (!response.ok) throw new Error('update http failed');
-          const payload = await response.json();
-          if (!payload?.ok || !payload.data) throw new Error('update read failed');
-          const data = payload.data;
-          const comparison = compareVersions(data.latestVersion, data.currentVersion);
-          setUpdate({
-            status: comparison > 0 ? 'available' : comparison < 0 ? 'ahead' : 'latest',
-            ...data,
-          });
-        } catch {
-          setUpdate({ status: 'failed' });
-        } finally {
-          setChecking(false);
-        }
-      };
+      if (!menu.open) return null;
 
       let updateMessage = t('update.idle');
-      let updateClass = 'ab-setting-description';
+      let updateClass = 'ab-menu-hint';
       if (update.status === 'checking') {
         updateMessage = t('update.checking');
       } else if (update.status === 'latest') {
@@ -860,111 +1053,167 @@ window.__ModuleLoader__.load({
         updateClass += ' ab-update-failed';
       }
 
+      const width = 312;
+      const height = 300;
+      const left = Math.max(8, Math.min(menu.x, (globalThis.innerWidth || 1024) - width - 8));
+      const top = Math.max(8, Math.min(menu.y, (globalThis.innerHeight || 768) - height - 8));
+
       return h(
         'div',
-        { className: 'ab-page' },
-        h('p', { className: 'ab-page-intro' }, t('settings.pageDescription')),
+        {
+          className: 'ab-menu-layer',
+          onPointerDown: menuClose,
+          onContextMenu: (event) => {
+            event.preventDefault();
+            menuClose();
+          },
+        },
         h(
           'div',
-          { className: 'ab-setting-row' },
-          h(
-            'label',
-            { className: 'ab-setting-copy', htmlFor: 'ab-refresh-seconds' },
-            h('span', { className: 'ab-setting-title' }, t('settings.title')),
-            h('span', { className: 'ab-setting-description' }, t('settings.description')),
-            invalid
-              ? h(
-                  'span',
-                  { id: 'ab-refresh-error', className: 'ab-setting-error', role: 'alert' },
-                  t('settings.invalid'),
-                )
-              : null,
-          ),
-          h(
-            'span',
-            { className: 'ab-setting-control' },
-            h('input', {
-              id: 'ab-refresh-seconds',
-              className: 'ab-setting-input',
-              type: 'number',
-              min: 0,
-              max: MAX_INTERVAL_SECONDS,
-              step: 1,
-              inputMode: 'numeric',
-              value: draft,
-              'aria-invalid': invalid ? 'true' : undefined,
-              'aria-describedby': invalid ? 'ab-refresh-error' : undefined,
-              onChange: (event) => {
-                setDraft(event.target.value);
-                if (invalid) setInvalid(false);
-              },
-              onBlur: commit,
-              onKeyDown: (event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  commit();
-                } else if (event.key === 'Escape') {
-                  setDraft(String(state.intervalSeconds));
-                  setInvalid(false);
-                }
-              },
-            }),
-            h('span', { className: 'ab-setting-unit' }, t('settings.unit')),
-          ),
-        ),
-        h(
-          'div',
-          { className: 'ab-setting-row' },
+          {
+            className: 'ab-menu',
+            style: { left: `${left}px`, top: `${top}px`, width: `${width}px` },
+            role: 'dialog',
+            'aria-modal': 'true',
+            'aria-label': t('menu.title'),
+            onPointerDown: (event) => event.stopPropagation(),
+            onContextMenu: (event) => event.preventDefault(),
+          },
           h(
             'div',
-            { className: 'ab-setting-copy ab-update-copy' },
-            h('span', { className: 'ab-setting-title' }, t('update.title')),
-            h(
-              'span',
-              {
-                className: updateClass,
-                role: update.status === 'failed' ? 'alert' : 'status',
-                'aria-live': 'polite',
-              },
-              updateMessage,
-            ),
-            update.status === 'available'
-              ? h('span', { className: 'ab-setting-description' }, t('update.hint'))
-              : null,
-          ),
-          h(
-            'span',
-            { className: 'ab-setting-control' },
-            update.status === 'available' && update.repoUrl
-              ? h(
-                  'a',
-                  {
-                    className: 'ab-update-link',
-                    href: update.repoUrl,
-                    target: '_blank',
-                    rel: 'noopener noreferrer',
-                  },
-                  t('update.open'),
-                )
-              : null,
+            { className: 'ab-menu-header' },
+            h('span', { className: 'ab-menu-title' }, t('menu.title')),
             h(
               'button',
               {
                 type: 'button',
-                className: 'ab-update-button',
-                disabled: checking,
-                'aria-busy': checking ? 'true' : undefined,
-                onClick: checkForUpdate,
+                className: 'ab-menu-close',
+                'aria-label': t('menu.close'),
+                onClick: menuClose,
               },
-              checking ? t('update.checking') : t('update.check'),
+              '×',
             ),
           ),
+          h(
+            'div',
+            { className: 'ab-menu-body' },
+            h(
+              'div',
+              { className: 'ab-menu-row' },
+              h(
+                'div',
+                { className: 'ab-menu-copy' },
+                h('div', { className: 'ab-menu-label' }, t('settings.title')),
+                h('div', { className: 'ab-menu-hint' }, t('settings.description')),
+                invalid
+                  ? h('div', { className: 'ab-menu-error', role: 'alert' }, t('settings.invalid'))
+                  : null,
+              ),
+              h(
+                'div',
+                { className: 'ab-menu-control' },
+                h('input', {
+                  className: 'ab-menu-input',
+                  type: 'number',
+                  min: 0,
+                  max: MAX_INTERVAL_SECONDS,
+                  step: 1,
+                  inputMode: 'numeric',
+                  autoFocus: true,
+                  value: draft,
+                  'aria-label': t('settings.title'),
+                  'aria-invalid': invalid ? 'true' : undefined,
+                  onChange: (event) => {
+                    setDraft(event.target.value);
+                    if (invalid) setInvalid(false);
+                  },
+                  onBlur: commit,
+                  onKeyDown: (event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      commit();
+                    } else if (event.key === 'Escape') {
+                      event.stopPropagation();
+                      setDraft(String(state.intervalSeconds));
+                      setInvalid(false);
+                      menuClose();
+                    }
+                  },
+                }),
+                h('span', { className: 'ab-menu-unit' }, t('settings.unit')),
+              ),
+            ),
+            h(
+              'div',
+              { className: 'ab-menu-row' },
+              h(
+                'div',
+                { className: 'ab-menu-copy' },
+                h('div', { className: 'ab-menu-label' }, t('update.title')),
+                h(
+                  'div',
+                  {
+                    className: updateClass,
+                    role: update.status === 'failed' ? 'alert' : 'status',
+                    'aria-live': 'polite',
+                  },
+                  updateMessage,
+                ),
+                h('div', { className: 'ab-menu-hint' }, t('update.autoCheck')),
+                update.status === 'available'
+                  ? h('div', { className: 'ab-menu-hint' }, t('update.hint'))
+                  : null,
+                update.status === 'available' && update.repoUrl
+                  ? h(
+                      'a',
+                      {
+                        className: 'ab-menu-link',
+                        href: update.repoUrl,
+                        target: '_blank',
+                        rel: 'noopener noreferrer',
+                      },
+                      t('update.open'),
+                    )
+                  : null,
+              ),
+              h(
+                'div',
+                { className: 'ab-menu-actions' },
+                update.status === 'available' && openPlugins
+                  ? h(
+                      'button',
+                      {
+                        type: 'button',
+                        className: 'ab-menu-button ab-menu-button-primary',
+                        onClick: () => {
+                          menuClose();
+                          openPlugins();
+                        },
+                      },
+                      t('update.openPlugins'),
+                    )
+                  : null,
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'ab-menu-button',
+                    disabled: update.status === 'checking',
+                    'aria-busy': update.status === 'checking' ? 'true' : undefined,
+                    onClick: () => void updateCheck(true),
+                  },
+                  update.status === 'checking' ? t('update.checking') : t('update.check'),
+                ),
+              ),
+            ),
+          ),
+          h('div', { className: 'ab-menu-footer' }, t('menu.footer')),
         ),
       );
     }
 
     return {
-      inject: ['slots', 'locale', 'remote', 'remote.account'],
+      inject: ['slots', 'locale', 'layout', 'remote', 'remote.account'],
       apply(ctx) {
         ctx.effect(
           () => ctx.locale.register(NS, { zh, en }),
@@ -979,28 +1228,53 @@ window.__ModuleLoader__.load({
             tag.remove();
           };
         }, 'account-balance: styles');
-        const t = ctx.locale.bind(NS);
         const store = createBalanceStore(ctx);
+        const updateStore = createUpdateStore(ctx);
+        const menuStore = createMenuStore();
+        const openPlugins = () => {
+          try {
+            ctx.layout.selectPanel('plugins');
+          } catch {
+            // The Plugins panel is unavailable in this composition.
+          }
+        };
+
         ctx.slots.inject(SLOT, () => ctx.slots.register(
           {
             name: SLOT,
             id: 'account-balance',
             order: 20,
             locale: NS,
-            inject: () => store,
+            inject: () => ({
+              ...store,
+              updateSubscribe: updateStore.subscribe,
+              updateGetSnapshot: updateStore.getSnapshot,
+              openMenu: menuStore.open,
+            }),
           },
           AccountBalance,
         ));
-        ctx.slots.inject(SETTINGS_SLOT, () => ctx.slots.register(
+
+        ctx.slots.inject('shell.overlay', () => ctx.slots.register(
           {
-            name: SETTINGS_SLOT,
-            id: 'account-balance',
-            order: 5,
-            label: () => t('settings.nav'),
+            name: 'shell.overlay',
+            id: 'account-balance-menu',
+            order: 100,
             locale: NS,
-            inject: () => store,
+            inject: () => ({
+              subscribe: store.subscribe,
+              getSnapshot: store.getSnapshot,
+              setIntervalSeconds: store.setIntervalSeconds,
+              menuSubscribe: menuStore.subscribe,
+              menuGetSnapshot: menuStore.getSnapshot,
+              menuClose: menuStore.close,
+              updateSubscribe: updateStore.subscribe,
+              updateGetSnapshot: updateStore.getSnapshot,
+              updateCheck: updateStore.check,
+              openPlugins,
+            }),
           },
-          BalanceSettingsPage,
+          BalanceMenu,
         ));
       },
     };

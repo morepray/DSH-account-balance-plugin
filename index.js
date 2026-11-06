@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-
 /**
  * Host half of the account-balance bundle.
  *
@@ -31,18 +29,6 @@ const MAX_WINDOW_SECONDS = 90_000;
 
 let cache;
 let updateCache;
-let localVersion;
-
-function currentVersion() {
-  if (localVersion !== undefined) return localVersion;
-  try {
-    const value = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
-    localVersion = typeof value.version === 'string' && value.version !== '' ? value.version : null;
-  } catch {
-    localVersion = null;
-  }
-  return localVersion;
-}
 
 function json(res, status, body) {
   const text = JSON.stringify(body);
@@ -184,9 +170,6 @@ async function readUpdate(force) {
     return updateCache.value;
   }
 
-  const current = currentVersion();
-  if (current === null) return { ok: false, code: 'version' };
-
   for (const base of REMOTE_PACKAGE_URLS) {
     const url = new URL(base);
     url.searchParams.set('cb', String(Date.now()));
@@ -216,7 +199,6 @@ async function readUpdate(force) {
     const value = {
       ok: true,
       data: {
-        currentVersion: current,
         latestVersion: remote.version,
         repoUrl: REPO_URL,
         checkedAt: Date.now(),
