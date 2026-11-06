@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
     /** The account Remote sends this client identity with each Platform read. */
     const CLIENT_VERSION = '0.2.1-rc.5';
     /** Keep this in sync with package.json when publishing a release. */
-    const PLUGIN_VERSION = '1.5.2';
+    const PLUGIN_VERSION = '1.5.3';
     /** Browser-local preference: seconds between automatic balance reads; 0 = off. */
     const INTERVAL_KEY = 'dsh.account-balance.refresh-seconds.v1';
     const DEFAULT_INTERVAL_SECONDS = 60;
@@ -1231,8 +1231,13 @@ window.__ModuleLoader__.load({
         const store = createBalanceStore(ctx);
         const updateStore = createUpdateStore(ctx);
         const menuStore = createMenuStore();
+        const pluginNavigation = ctx.get('pluginNavigation');
         const openPlugins = () => {
           try {
+            if (pluginNavigation !== undefined && typeof pluginNavigation.openBundle === 'function') {
+              pluginNavigation.openBundle('@local/dsh-account-balance');
+              return;
+            }
             ctx.layout.selectPanel('plugins');
           } catch {
             // The Plugins panel is unavailable in this composition.
