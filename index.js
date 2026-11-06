@@ -18,20 +18,7 @@ const USAGE_PATH = '/account-balance/usage';
 const UPDATE_PATH = '/account-balance/update';
 const COST_PATH = '/api/v0/usage/by_api_key/cost';
 const REPO_URL = 'https://github.com/morepray/DSH-account-balance-plugin';
-const REMOTE_PACKAGE_SOURCES = [
-  {
-    url: 'https://api.github.com/repos/morepray/DSH-account-balance-plugin/contents/package.json?ref=main',
-    github: true,
-  },
-  {
-    url: 'https://raw.githubusercontent.com/morepray/DSH-account-balance-plugin/main/package.json',
-    github: false,
-  },
-  {
-    url: 'https://cdn.jsdelivr.net/gh/morepray/DSH-account-balance-plugin@main/package.json',
-    github: false,
-  },
-];
+const REMOTE_PACKAGE_URL = 'https://api.github.com/repos/morepray/DSH-account-balance-plugin/contents/package.json?ref=main';
 const CACHE_TTL_MS = 30_000;
 const REQUEST_TIMEOUT_MS = 15_000;
 const UPDATE_TIMEOUT_MS = 10_000;
@@ -180,53 +167,47 @@ async function readUpdate(force) {
     return updateCache.value;
   }
 
-  for (const source of REMOTE_PACKAGE_SOURCES) {
-    const url = new URL(source.url);
-    if (!source.github) url.searchParams.set('cb', String(Date.now()));
-    let response;
-    try {
-      response = await fetch(url, {
-        headers: {
-          accept: source.github ? 'application/vnd.github+json' : 'application/json',
-          'cache-control': 'no-cache',
-          'user-agent': 'DSH-account-balance-plugin',
-        },
-        redirect: 'manual',
-        signal: AbortSignal.timeout(UPDATE_TIMEOUT_MS),
-      });
-    } catch {
-      continue;
-    }
-    if (response.status !== 200) continue;
-
-    let remote;
-    try {
-      if (source.github) {
-        const body = await response.json();
-        if (body?.encoding !== 'base64' || typeof body.content !== 'string') continue;
-        const text = Buffer.from(body.content.replace(/\s+/g, ''), 'base64').toString('utf8');
-        remote = JSON.parse(text);
-      } else {
-        remote = await response.json();
-      }
-    } catch {
-      continue;
-    }
-    if (typeof remote?.version !== 'string' || remote.version === '') continue;
-
-    const value = {
-      ok: true,
-      data: {
-        latestVersion: remote.version,
-        repoUrl: REPO_URL,
-        checkedAt: Date.now(),
+  let response;
+  try {
+    response = await fetch(REMOTE_PACKAGE_URL, {
+      headers: {
+        accept: 'application/vnd.github+json',
+        'cache-control': 'no-cache',
+        'user-agent': 'DSH-account-balance-plugin',
       },
-    };
-    updateCache = { at: Date.now(), value };
-    return value;
+      redirect: 'manual',
+      signal: AbortSignal.timeout(UPDATE_TIMEOUT_MS),
+    });
+  } catch {
+    return { ok: false, code: 'network' };
+  }
+  if (response.status !== 200) return { ok: false, code: 'http' };
+
+  let remote;
+  try {
+    const body = await response.json();
+    if (body?.encoding !== 'base64' || typeof body.content !== 'string') {
+      return { ok: false, code: 'invalid' };
+    }
+    const text = Buffer.from(body.content.replace(/\s+/g, ''), 'base64').toString('utf8');
+    remote = JSON.parse(text);
+  } catch {
+    return { ok: false, code: 'invalid' };
+  }
+  if (typeof remote?.version !== 'string' || remote.version === '') {
+    return { ok: false, code: 'invalid' };
   }
 
-  return { ok: false, code: 'network' };
+  const value = {
+    ok: true,
+    data: {
+      latestVersion: remote.version,
+      repoUrl: REPO_URL,
+      checkedAt: Date.now(),
+    },
+  };
+  updateCache = { at: Date.now(), value };
+  return value;
 }
 
 export function apply(ctx) {
