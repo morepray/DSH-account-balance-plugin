@@ -1386,7 +1386,7 @@ window.__ModuleLoader__.load({
           'div',
           {
             className: 'ab-menu',
-            style: { left: '8px', bottom: '128px' },
+            style: { left: '8px', bottom: '106px' },
             role: 'dialog',
             'aria-modal': 'true',
             'aria-label': t('menu.title'),
