@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
     /** The account Remote sends this client identity with each Platform read. */
     const CLIENT_VERSION = '0.2.1-rc.5';
     /** Keep this in sync with package.json when publishing a release. */
-    const PLUGIN_VERSION = '1.5.4';
+    const PLUGIN_VERSION = '1.5.5';
     /** Browser-local preference: seconds between automatic balance reads; 0 = off. */
     const INTERVAL_KEY = 'dsh.account-balance.refresh-seconds.v1';
     const DEFAULT_INTERVAL_SECONDS = 60;
@@ -656,7 +656,6 @@ window.__ModuleLoader__.load({
         timer = setInterval(() => {
           if (disposed || state.refreshing) return;
           if (globalThis.document?.visibilityState === 'hidden') return;
-          if (state.phase === 'signed-out') return;
           void refresh();
         }, state.intervalSeconds * 1000);
       };
@@ -690,7 +689,7 @@ window.__ModuleLoader__.load({
         try {
           for await (const frame of stream) {
             if (disposed) return;
-            const view = frame.value;
+            const view = frame.value?.state ?? frame.value;
             if (view && view.status === 'credential-stored') {
               // Every complete account frame gets a fresh read; sign-in, reconnect,
               // profile changes and explicit refreshes all arrive here.
