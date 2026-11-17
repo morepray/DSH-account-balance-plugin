@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
     /** The account Remote sends this client identity with each Platform read. */
     const CLIENT_VERSION = '0.2.1-rc.5';
     /** Keep this in sync with package.json when publishing a release. */
-    const PLUGIN_VERSION = '1.6.2';
+    const PLUGIN_VERSION = '1.6.3';
     /** Browser-local preference: seconds between automatic balance reads; 0 = off. */
     const INTERVAL_KEY = 'dsh.account-balance.refresh-seconds.v1';
     const DEFAULT_INTERVAL_SECONDS = 60;
@@ -287,13 +287,13 @@ window.__ModuleLoader__.load({
 .ab-menu {
   position: fixed;
   box-sizing: border-box;
-  width: min(312px, calc(100vw - 16px));
+  width: min(264px, calc(100vw - 16px));
   max-height: calc(100vh - 76px);
   padding: 10px;
   overflow-y: auto;
   border: .5px solid var(--dsw-alias-border-l1);
   border-radius: 12px;
-  background: var(--dsw-alias-bg-overlay);
+  background: #fff;
   box-shadow: var(--dsw-elevation-prominent);
   backdrop-filter: var(--dsw-menu-backdrop-filter, blur(18px));
   color: var(--dsw-alias-label-primary);
