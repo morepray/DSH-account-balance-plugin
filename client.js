@@ -506,14 +506,14 @@ window.__ModuleLoader__.load({
         h('path', {
           d: 'M8 5.9v3.7',
           fill: 'none',
-          stroke: 'var(--dsw-specific-sidebar-fill, #fff)',
+          stroke: '#fff',
           strokeWidth: '1.6',
           strokeLinecap: 'round',
         }),
         h('path', {
           d: 'M8 11.6h.01',
           fill: 'none',
-          stroke: 'var(--dsw-specific-sidebar-fill, #fff)',
+          stroke: '#fff',
           strokeWidth: '1.8',
           strokeLinecap: 'round',
         }),
