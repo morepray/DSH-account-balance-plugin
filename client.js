@@ -15,11 +15,17 @@ window.__ModuleLoader__.load({
     /** The account Remote sends this client identity with each Platform read. */
     const CLIENT_VERSION = '0.2.1-rc.5';
     /** Keep this in sync with package.json when publishing a release. */
-    const PLUGIN_VERSION = '1.5.5';
+    const PLUGIN_VERSION = '1.6.0';
     /** Browser-local preference: seconds between automatic balance reads; 0 = off. */
     const INTERVAL_KEY = 'dsh.account-balance.refresh-seconds.v1';
     const DEFAULT_INTERVAL_SECONDS = 60;
     const MAX_INTERVAL_SECONDS = 3600;
+    /** Browser-local preference: alert when today's spend exceeds this amount; 0 = off. */
+    const ALERT_THRESHOLD_KEY = 'dsh.account-balance.alert-threshold.v1';
+    /** Browser-local record of the local day and threshold that already alerted. */
+    const ALERT_RECORD_KEY = 'dsh.account-balance.alert-record.v1';
+    const DEFAULT_ALERT_THRESHOLD = 5;
+    const MAX_ALERT_THRESHOLD = 100000;
     const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
     const UPDATE_ATTEMPT_GAP_MS = 60_000;
 
@@ -37,6 +43,15 @@ window.__ModuleLoader__.load({
       'balance.refreshHint': 'Click to refresh',
       'balance.contextHint': 'Right-click for settings and updates',
       'balance.aria': 'Account balance',
+      'alert.title': 'Daily spend alert',
+      'alert.body': 'Today used {cost}, above the {threshold} alert line.',
+      'alert.dismiss': 'Got it',
+      'alert.notificationTitle': 'Daily spend alert',
+      'alert.settingTitle': 'Daily spend alert',
+      'alert.settingDescription': 'Alert once a day when today\'s spend first exceeds this amount; 0 turns it off.',
+      'alert.settingUnit': 'CNY',
+      'alert.invalid': 'Enter an amount from 0 to 100000.',
+      'alert.over': 'Above the {threshold} alert line.',
       'balance.ariaValue': 'Account balance: {amount}. Click to refresh.',
       'balance.ariaValueWithUsage': 'Account balance: {amount}. Today used: {usage}. Click to refresh.',
       'balance.ariaLoading': 'Account balance is loading',
@@ -78,6 +93,15 @@ window.__ModuleLoader__.load({
       'balance.refreshHint': '点击刷新',
       'balance.contextHint': '右键打开设置与更新',
       'balance.aria': '账户余额',
+      'alert.title': '今日用量报警',
+      'alert.body': '今日已用 {cost}，已超过 {threshold} 报警线。',
+      'alert.dismiss': '知道了',
+      'alert.notificationTitle': '今日用量报警',
+      'alert.settingTitle': '用量报警',
+      'alert.settingDescription': '每天首次超过此金额时提醒一次；0 表示关闭。',
+      'alert.settingUnit': '元',
+      'alert.invalid': '请输入 0–100000 之间的金额。',
+      'alert.over': '已超过 {threshold} 报警线。',
       'balance.ariaValue': '账户余额：{amount}。点击刷新。',
       'balance.ariaValueWithUsage': '账户余额：{amount}。今日已用：{usage}。点击刷新。',
       'balance.ariaLoading': '正在读取账户余额',
@@ -356,6 +380,70 @@ window.__ModuleLoader__.load({
   box-shadow: 0 0 0 2px var(--dsw-specific-sidebar-fill);
 }
 .ab-railButton .ab-update-dot { top: 4px; right: 4px; }
+.ab-usage[data-over="true"] {
+  color: var(--dsw-alias-state-error-primary);
+  font-weight: 500;
+}
+.ab-button[data-over="true"] {
+  box-shadow: inset 0 0 0 1.5px var(--dsw-alias-state-error-primary);
+}
+.ab-alert-layer { position: fixed; inset: 0; z-index: 1100; pointer-events: none; }
+.ab-alert {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  box-sizing: border-box;
+  width: min(340px, calc(100vw - 32px));
+  padding: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: .5px solid var(--dsw-alias-state-error-primary);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-overlay);
+  box-shadow: var(--dsw-elevation-prominent);
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  pointer-events: auto;
+}
+.ab-alert-icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-bg-overlay);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+}
+.ab-alert-copy { flex: 1; min-width: 0; }
+.ab-alert-title { font-size: 13px; font-weight: 500; line-height: 18px; }
+.ab-alert-body {
+  margin-top: 2px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 17px;
+}
+.ab-alert-dismiss {
+  flex: none;
+  height: 26px;
+  padding: 0 8px;
+  border: .5px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ab-alert-dismiss:hover { background: var(--dsw-alias-bg-layer-2); }
+.ab-alert-dismiss:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 1px;
+}
 @keyframes ab-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 @media (prefers-reduced-motion: reduce) {
   .ab-button[data-refreshing="true"] .ab-icon { animation: none; }
@@ -490,6 +578,74 @@ window.__ModuleLoader__.load({
       }
     }
 
+    function clampAlertThreshold(value) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return DEFAULT_ALERT_THRESHOLD;
+      return Math.max(0, Math.min(MAX_ALERT_THRESHOLD, Math.round(number * 100) / 100));
+    }
+
+    function readAlertThreshold() {
+      try {
+        const raw = globalThis.localStorage?.getItem(ALERT_THRESHOLD_KEY);
+        if (raw === null || raw === undefined || raw.trim() === '') {
+          return DEFAULT_ALERT_THRESHOLD;
+        }
+        return clampAlertThreshold(raw);
+      } catch {
+        return DEFAULT_ALERT_THRESHOLD;
+      }
+    }
+
+    function writeAlertThreshold(value) {
+      try {
+        globalThis.localStorage?.setItem(ALERT_THRESHOLD_KEY, String(value));
+      } catch {
+        // A browser with storage disabled keeps the session value only.
+      }
+    }
+
+    function localDateKey(date = new Date()) {
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${date.getFullYear()}-${month}-${day}`;
+    }
+
+    function readAlertRecord() {
+      try {
+        const raw = globalThis.localStorage?.getItem(ALERT_RECORD_KEY);
+        if (!raw) return null;
+        const record = JSON.parse(raw);
+        if (!record || typeof record.date !== 'string') return null;
+        if (!Number.isFinite(Number(record.threshold))) return null;
+        return record;
+      } catch {
+        return null;
+      }
+    }
+
+    function writeAlertRecord(record) {
+      try {
+        if (record === null) {
+          globalThis.localStorage?.removeItem(ALERT_RECORD_KEY);
+        } else {
+          globalThis.localStorage?.setItem(ALERT_RECORD_KEY, JSON.stringify(record));
+        }
+      } catch {
+        // A browser with storage disabled keeps the session value only.
+      }
+    }
+
+    function requestNotificationPermission() {
+      try {
+        if (typeof globalThis.Notification === 'function'
+          && globalThis.Notification.permission === 'default') {
+          void globalThis.Notification.requestPermission();
+        }
+      } catch {
+        // Desktop notifications are optional; the in-app alert still works.
+      }
+    }
+
     function createBalanceStore(ctx) {
       let state = {
         phase: 'loading',
@@ -499,6 +655,8 @@ window.__ModuleLoader__.load({
         error: false,
         updatedAt: 0,
         intervalSeconds: readIntervalSeconds(),
+        alertThreshold: readAlertThreshold(),
+        alert: null,
         usagePhase: 'loading',
         usageCost: null,
         usageCurrency: 'CNY',
@@ -524,6 +682,21 @@ window.__ModuleLoader__.load({
       };
 
       const getSnapshot = () => state;
+
+      /**
+       * Record one alert per local day and threshold. A dismissed alert stays
+       * dismissed for that day, while the card keeps showing the over-limit state.
+       */
+      const maybeAlert = (cost, currency, threshold = state.alertThreshold) => {
+        if (!Number.isFinite(cost) || threshold <= 0 || cost <= threshold) return;
+        const date = localDateKey();
+        const record = readAlertRecord();
+        if (record && record.date === date && record.threshold === threshold) return;
+        if (state.alert && state.alert.date === date && state.alert.threshold === threshold) return;
+        const alert = { date, cost, threshold, currency, at: Date.now() };
+        writeAlertRecord(alert);
+        emit({ alert });
+      };
 
       const client = () => ({
         version: CLIENT_VERSION,
@@ -572,21 +745,24 @@ window.__ModuleLoader__.load({
             emit({
               usagePhase: 'signed-out',
               usageCost: null,
+              alert: null,
               usageError: false,
               usageUpdatedAt: 0,
             });
             return;
           }
           const cost = Number(data?.cost);
+          const currency = typeof data?.currency === 'string' && data.currency !== ''
+            ? data.currency
+            : 'CNY';
           emit({
             usagePhase: 'ready',
             usageCost: Number.isFinite(cost) ? cost : null,
-            usageCurrency: typeof data?.currency === 'string' && data.currency !== ''
-              ? data.currency
-              : 'CNY',
+            usageCurrency: currency,
             usageError: false,
             usageUpdatedAt: Date.now(),
           });
+          if (Number.isFinite(cost)) maybeAlert(cost, currency);
         } catch {
           if (disposed || request !== usageGeneration) return;
           emit({
@@ -668,6 +844,24 @@ window.__ModuleLoader__.load({
         armTimer();
       };
 
+      const setAlertThreshold = (value) => {
+        const threshold = clampAlertThreshold(value);
+        writeAlertThreshold(threshold);
+        if (threshold > 0) requestNotificationPermission();
+        const cost = Number(state.usageCost);
+        const over = threshold > 0
+          && state.usagePhase === 'ready'
+          && state.usageCost !== null
+          && Number.isFinite(cost)
+          && cost > threshold;
+        emit({ alertThreshold: threshold, alert: over ? state.alert : null });
+        if (over) maybeAlert(cost, state.usageCurrency, threshold);
+      };
+
+      const dismissAlert = () => {
+        if (state.alert) emit({ alert: null });
+      };
+
       const stream = ctx.remote.$stream({
         name: 'account-balance',
         open: (signal) => ctx.remote.account.watch(signal),
@@ -706,6 +900,7 @@ window.__ModuleLoader__.load({
                 updatedAt: 0,
                 usagePhase: 'signed-out',
                 usageCost: null,
+                alert: null,
                 usageError: false,
                 usageUpdatedAt: 0,
               });
@@ -729,6 +924,8 @@ window.__ModuleLoader__.load({
           if (!state.refreshing) void refresh();
         },
         setIntervalSeconds,
+        setAlertThreshold,
+        dismissAlert,
       };
     }
 
@@ -861,6 +1058,17 @@ window.__ModuleLoader__.load({
           : state.usagePhase === 'signed-out'
             ? t('balance.signedOut')
             : t('balance.usageFailed');
+      const alertThreshold = state.alertThreshold;
+      const overAlert = state.usagePhase === 'ready'
+        && alertThreshold > 0
+        && state.usageCost !== null
+        && Number.isFinite(Number(state.usageCost))
+        && Number(state.usageCost) > alertThreshold;
+      const alertLine = overAlert
+        ? t('alert.over', {
+            threshold: formatBalance(String(alertThreshold), symbolFor(state.usageCurrency)),
+          })
+        : '';
       const bonus = phase === 'ready' ? formatWallets(state.bonusWallets) : '';
       const label = t('balance.label');
       const balanceLine = phase === 'ready'
@@ -876,6 +1084,7 @@ window.__ModuleLoader__.load({
         balanceLine,
         ...(phase === 'ready' && bonus ? [`${t('balance.bonus')}: ${bonus}`] : []),
         usageLine,
+        ...(overAlert ? [alertLine] : []),
         ...(state.intervalSeconds > 0
           ? [`${t('balance.autoRefresh')}: ${t('balance.everySeconds', { seconds: state.intervalSeconds })}`]
           : []),
@@ -895,6 +1104,7 @@ window.__ModuleLoader__.load({
           : phase === 'signed-out'
             ? t('balance.ariaSignedOut')
             : t('balance.ariaFailed');
+      const ariaLabel = overAlert ? `${aria} · ${alertLine}` : aria;
 
       return h(
         React.Fragment,
@@ -908,12 +1118,13 @@ window.__ModuleLoader__.load({
               type: 'button',
               className: wide ? 'ab-button' : 'ab-button ab-railButton',
               title,
-              'aria-label': aria,
+              'aria-label': ariaLabel,
               'aria-busy': state.refreshing || phase === 'loading' || state.usagePhase === 'loading'
                 ? 'true'
                 : undefined,
               'data-phase': phase,
               'data-refreshing': state.refreshing ? 'true' : undefined,
+              'data-over': overAlert ? 'true' : undefined,
               onClick: () => {
                 if (!state.refreshing) refresh();
               },
@@ -951,6 +1162,7 @@ window.__ModuleLoader__.load({
                         className: 'ab-usage',
                         'data-phase': state.usagePhase,
                         'data-error': state.usageError && state.usagePhase === 'ready' ? 'true' : undefined,
+                        'data-over': overAlert ? 'true' : undefined,
                       },
                       usageText,
                     ),
@@ -975,11 +1187,72 @@ window.__ModuleLoader__.load({
       );
     }
 
+    function UsageAlert({ t, subscribe, getSnapshot, dismissAlert }) {
+      const state = React.useSyncExternalStore(subscribe, getSnapshot);
+      const alert = state.alert;
+      const notifiedRef = React.useRef('');
+
+      React.useEffect(() => {
+        if (!alert) {
+          notifiedRef.current = '';
+          return undefined;
+        }
+        const timer = setTimeout(() => dismissAlert(), 30000);
+        return () => clearTimeout(timer);
+      }, [alert, dismissAlert]);
+
+      React.useEffect(() => {
+        if (!alert) return;
+        const key = `${alert.date}:${alert.threshold}`;
+        if (notifiedRef.current === key) return;
+        try {
+          if (typeof globalThis.Notification !== 'function'
+            || globalThis.Notification.permission !== 'granted') return;
+          const currency = symbolFor(alert.currency);
+          const cost = formatBalance(String(alert.cost), currency);
+          const threshold = formatBalance(String(alert.threshold), currency);
+          new globalThis.Notification(t('alert.notificationTitle'), {
+            body: t('alert.body', { cost, threshold }),
+            tag: `dsh-account-balance-alert:${key}`,
+          });
+          notifiedRef.current = key;
+        } catch {
+          // Desktop notifications are optional; the in-app alert still works.
+        }
+      }, [alert, t]);
+
+      if (!alert) return null;
+      const currency = symbolFor(alert.currency);
+      const cost = formatBalance(String(alert.cost), currency);
+      const threshold = formatBalance(String(alert.threshold), currency);
+      return h(
+        'div',
+        { className: 'ab-alert-layer' },
+        h(
+          'div',
+          { className: 'ab-alert', role: 'alert' },
+          h('span', { className: 'ab-alert-icon', 'aria-hidden': 'true' }, '!'),
+          h(
+            'div',
+            { className: 'ab-alert-copy' },
+            h('div', { className: 'ab-alert-title' }, t('alert.title')),
+            h('div', { className: 'ab-alert-body' }, t('alert.body', { cost, threshold })),
+          ),
+          h(
+            'button',
+            { type: 'button', className: 'ab-alert-dismiss', onClick: dismissAlert },
+            t('alert.dismiss'),
+          ),
+        ),
+      );
+    }
+
     function BalanceMenu({
       t,
       subscribe,
       getSnapshot,
       setIntervalSeconds,
+      setAlertThreshold,
       menuSubscribe,
       menuGetSnapshot,
       menuClose,
@@ -993,11 +1266,30 @@ window.__ModuleLoader__.load({
       const update = React.useSyncExternalStore(updateSubscribe, updateGetSnapshot);
       const [draft, setDraft] = React.useState(String(state.intervalSeconds));
       const [invalid, setInvalid] = React.useState(false);
+      const [thresholdDraft, setThresholdDraft] = React.useState(String(state.alertThreshold));
+      const [thresholdInvalid, setThresholdInvalid] = React.useState(false);
+
+      const alertThreshold = state.alertThreshold;
+      const usageCost = Number(state.usageCost);
+      const overAlert = state.usagePhase === 'ready'
+        && alertThreshold > 0
+        && state.usageCost !== null
+        && Number.isFinite(usageCost)
+        && usageCost > alertThreshold;
+      const thresholdText = formatBalance(
+        String(alertThreshold),
+        symbolFor(state.usageCurrency),
+      );
 
       React.useEffect(() => {
         setDraft(String(state.intervalSeconds));
         setInvalid(false);
       }, [state.intervalSeconds]);
+
+      React.useEffect(() => {
+        setThresholdDraft(String(state.alertThreshold));
+        setThresholdInvalid(false);
+      }, [state.alertThreshold]);
 
       React.useEffect(() => {
         if (!menu.open) return undefined;
@@ -1028,6 +1320,22 @@ window.__ModuleLoader__.load({
         setIntervalSeconds(value);
       };
 
+      const commitAlertThreshold = () => {
+        const raw = thresholdDraft.trim();
+        if (raw === '') {
+          setThresholdDraft(String(state.alertThreshold));
+          setThresholdInvalid(false);
+          return;
+        }
+        const value = Number(raw);
+        if (!Number.isFinite(value) || value < 0 || value > MAX_ALERT_THRESHOLD) {
+          setThresholdInvalid(true);
+          return;
+        }
+        setThresholdInvalid(false);
+        setAlertThreshold(value);
+      };
+
       if (!menu.open) return null;
 
       let updateMessage = t('update.idle');
@@ -1053,7 +1361,7 @@ window.__ModuleLoader__.load({
       }
 
       const width = 312;
-      const height = 300;
+      const height = 390;
       const left = Math.max(8, Math.min(menu.x, (globalThis.innerWidth || 1024) - width - 8));
       const top = Math.max(8, Math.min(menu.y, (globalThis.innerHeight || 768) - height - 8));
 
@@ -1140,6 +1448,58 @@ window.__ModuleLoader__.load({
                   },
                 }),
                 h('span', { className: 'ab-menu-unit' }, t('settings.unit')),
+              ),
+            ),
+            h(
+              'div',
+              { className: 'ab-menu-row' },
+              h(
+                'div',
+                { className: 'ab-menu-copy' },
+                h('div', { className: 'ab-menu-label' }, t('alert.settingTitle')),
+                h('div', { className: 'ab-menu-hint' }, t('alert.settingDescription')),
+                thresholdInvalid
+                  ? h('div', { className: 'ab-menu-error', role: 'alert' }, t('alert.invalid'))
+                  : null,
+                overAlert
+                  ? h(
+                      'div',
+                      { className: 'ab-menu-error' },
+                      t('alert.over', { threshold: thresholdText }),
+                    )
+                  : null,
+              ),
+              h(
+                'div',
+                { className: 'ab-menu-control' },
+                h('input', {
+                  className: 'ab-menu-input',
+                  type: 'number',
+                  min: 0,
+                  max: MAX_ALERT_THRESHOLD,
+                  step: 0.01,
+                  inputMode: 'decimal',
+                  value: thresholdDraft,
+                  'aria-label': t('alert.settingTitle'),
+                  'aria-invalid': thresholdInvalid ? 'true' : undefined,
+                  onChange: (event) => {
+                    setThresholdDraft(event.target.value);
+                    if (thresholdInvalid) setThresholdInvalid(false);
+                  },
+                  onBlur: commitAlertThreshold,
+                  onKeyDown: (event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      commitAlertThreshold();
+                    } else if (event.key === 'Escape') {
+                      event.stopPropagation();
+                      setThresholdDraft(String(state.alertThreshold));
+                      setThresholdInvalid(false);
+                      menuClose();
+                    }
+                  },
+                }),
+                h('span', { className: 'ab-menu-unit' }, t('alert.settingUnit')),
               ),
             ),
             h(
@@ -1269,6 +1629,7 @@ window.__ModuleLoader__.load({
               subscribe: store.subscribe,
               getSnapshot: store.getSnapshot,
               setIntervalSeconds: store.setIntervalSeconds,
+              setAlertThreshold: store.setAlertThreshold,
               menuSubscribe: menuStore.subscribe,
               menuGetSnapshot: menuStore.getSnapshot,
               menuClose: menuStore.close,
@@ -1279,6 +1640,21 @@ window.__ModuleLoader__.load({
             }),
           },
           BalanceMenu,
+        ));
+
+        ctx.slots.inject('shell.overlay', () => ctx.slots.register(
+          {
+            name: 'shell.overlay',
+            id: 'account-balance-alert',
+            order: 101,
+            locale: NS,
+            inject: () => ({
+              subscribe: store.subscribe,
+              getSnapshot: store.getSnapshot,
+              dismissAlert: store.dismissAlert,
+            }),
+          },
+          UsageAlert,
         ));
       },
     };

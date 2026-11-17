@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "账户余额",
-    "description": "在左侧栏底部显示 DeepSeek 账户余额和今日已用金额；右键卡片打开设置与更新菜单。"
+    "description": "在左侧栏底部显示 DeepSeek 账户余额和今日已用金额，并支持每日用量报警；右键卡片打开设置与更新菜单。"
   },
   "balance": {
     "label": "余额",

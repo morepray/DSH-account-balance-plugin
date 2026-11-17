@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Account Balance",
-    "description": "Shows the DeepSeek account balance and today's spend at the sidebar foot, with right-click settings and update checks."
+    "description": "Shows the DeepSeek account balance and today's spend at the sidebar foot, with a daily spend alert, right-click settings and update checks."
   },
   "balance": {
     "label": "Balance",

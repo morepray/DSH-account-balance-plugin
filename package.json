@@ -1,9 +1,9 @@
 {
   "name": "@local/dsh-account-balance",
-  "version": "1.5.5",
+  "version": "1.6.0",
   "private": true,
   "type": "module",
-  "description": "Shows the DeepSeek account balance and today's spend at the sidebar foot, with a configurable refresh interval.",
+  "description": "Shows the DeepSeek account balance and today's spend at the sidebar foot, with a configurable refresh interval and a daily spend alert.",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
