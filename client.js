@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
     /** The account Remote sends this client identity with each Platform read. */
     const CLIENT_VERSION = '0.2.1-rc.5';
     /** Keep this in sync with package.json when publishing a release. */
-    const PLUGIN_VERSION = '1.6.1';
+    const PLUGIN_VERSION = '1.6.2';
     /** Browser-local preference: seconds between automatic balance reads; 0 = off. */
     const INTERVAL_KEY = 'dsh.account-balance.refresh-seconds.v1';
     const DEFAULT_INTERVAL_SECONDS = 60;
@@ -41,7 +41,7 @@ window.__ModuleLoader__.load({
       'balance.autoRefresh': 'Auto-refresh',
       'balance.everySeconds': 'every {seconds}s',
       'balance.refreshHint': 'Click to refresh',
-      'balance.contextHint': 'Right-click for settings and updates',
+      'balance.contextHint': 'Click the gear for settings and updates',
       'balance.aria': 'Account balance',
       'alert.title': 'Daily spend alert',
       'alert.body': 'Today used {cost}, above the {threshold} alert line.',
@@ -75,8 +75,9 @@ window.__ModuleLoader__.load({
       'update.openPlugins': 'Update in Plugins',
       'update.autoCheck': 'Checks GitHub every 6 hours.',
       'menu.title': 'Balance & usage',
+      'menu.open': 'Settings & updates',
       'menu.close': 'Close',
-      'menu.footer': 'Click the card to refresh · Right-click to reopen',
+      'menu.footer': 'Click the card to refresh · Click the gear to reopen',
     };
 
     const zh = {
@@ -91,7 +92,7 @@ window.__ModuleLoader__.load({
       'balance.autoRefresh': '自动刷新',
       'balance.everySeconds': '每 {seconds} 秒',
       'balance.refreshHint': '点击刷新',
-      'balance.contextHint': '右键打开设置与更新',
+      'balance.contextHint': '点击齿轮打开设置与更新',
       'balance.aria': '账户余额',
       'alert.title': '今日用量报警',
       'alert.body': '今日已用 {cost}，已超过 {threshold} 报警线。',
@@ -125,13 +126,35 @@ window.__ModuleLoader__.load({
       'update.openPlugins': '去 Plugins 更新',
       'update.autoCheck': '每 6 小时自动检查一次 GitHub。',
       'menu.title': '余额与用量',
+      'menu.open': '设置与更新',
       'menu.close': '关闭',
-      'menu.footer': '左键刷新 · 右键重新打开',
+      'menu.footer': '点击卡片刷新 · 点击齿轮重新打开',
     };
 
     const css = `
 .ab-root { flex: none; width: 100%; min-width: 0; }
 .ab-root[data-wide="false"] { width: auto; }
+.ab-root[data-wide="true"] { display: flex; align-items: center; gap: 2px; }
+.ab-root[data-wide="true"] .ab-button { flex: 1; width: auto; margin-right: 0; }
+.ab-gear {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 8px 0 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+.ab-gear:hover { background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); }
+.ab-gear:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 1px; }
+.ab-gear-icon { display: block; }
 .ab-button {
   box-sizing: border-box;
   width: calc(100% + 4px);
@@ -264,8 +287,9 @@ window.__ModuleLoader__.load({
 .ab-menu {
   position: fixed;
   box-sizing: border-box;
-  max-height: calc(100vh - 16px);
-  padding: 12px;
+  width: min(312px, calc(100vw - 16px));
+  max-height: calc(100vh - 76px);
+  padding: 10px;
   overflow-y: auto;
   border: .5px solid var(--dsw-alias-border-l1);
   border-radius: 12px;
@@ -274,13 +298,15 @@ window.__ModuleLoader__.load({
   backdrop-filter: var(--dsw-menu-backdrop-filter, blur(18px));
   color: var(--dsw-alias-label-primary);
   font-family: inherit;
+  transform-origin: left bottom;
+  animation: ab-menu-pop 180ms cubic-bezier(.16, 1, .3, 1);
 }
 .ab-menu-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding-bottom: 8px;
+  padding-bottom: 6px;
 }
 .ab-menu-title { font-size: 13px; font-weight: 500; line-height: 18px; }
 .ab-menu-close {
@@ -303,36 +329,36 @@ window.__ModuleLoader__.load({
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0;
+  gap: 10px;
+  padding: 7px 0;
   border-top: .5px solid var(--dsw-alias-border-l1);
 }
 .ab-menu-row:first-child { border-top: 0; }
 .ab-menu-copy { flex: 1; min-width: 0; }
-.ab-menu-label { font-size: 13px; line-height: 18px; }
+.ab-menu-label { font-size: 12px; line-height: 17px; }
 .ab-menu-hint {
   color: var(--dsw-alias-label-secondary);
-  margin-top: 2px;
-  font-size: 11px;
-  line-height: 16px;
+  margin-top: 1px;
+  font-size: 10.5px;
+  line-height: 14px;
 }
 .ab-menu-error {
   color: var(--dsw-alias-state-error-primary);
-  margin-top: 2px;
-  font-size: 11px;
-  line-height: 16px;
+  margin-top: 1px;
+  font-size: 10.5px;
+  line-height: 14px;
 }
 .ab-menu-warn {
   color: var(--dsw-alias-state-warn-primary);
-  margin-top: 2px;
-  font-size: 11px;
-  line-height: 16px;
+  margin-top: 1px;
+  font-size: 10.5px;
+  line-height: 14px;
 }
 .ab-menu-control { flex: none; display: flex; align-items: center; gap: 4px; }
 .ab-menu-input {
   box-sizing: border-box;
-  width: 64px;
-  height: 28px;
+  width: 60px;
+  height: 26px;
   padding: 0 6px;
   border: .5px solid var(--dsw-alias-border-l2);
   border-radius: 6px;
@@ -353,11 +379,11 @@ window.__ModuleLoader__.load({
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 6px;
+  gap: 4px;
 }
 .ab-menu-button {
-  height: 28px;
-  padding: 0 10px;
+  height: 26px;
+  padding: 0 9px;
   border: .5px solid var(--dsw-alias-border-l2);
   border-radius: 6px;
   background: transparent;
@@ -373,20 +399,20 @@ window.__ModuleLoader__.load({
 .ab-menu-button-primary { border-color: var(--dsw-alias-brand-primary); color: var(--dsw-alias-brand-primary); }
 .ab-menu-link {
   display: inline-block;
-  margin-top: 4px;
+  margin-top: 3px;
   color: var(--dsw-alias-brand-primary);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: 10.5px;
+  line-height: 14px;
   text-decoration: none;
 }
 .ab-menu-link:hover { text-decoration: underline; }
 .ab-menu-footer {
-  margin-top: 8px;
-  padding-top: 8px;
+  margin-top: 6px;
+  padding-top: 6px;
   border-top: .5px solid var(--dsw-alias-border-l1);
   color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: 10.5px;
+  line-height: 14px;
 }
 .ab-update-available { color: var(--dsw-alias-state-success-primary); }
 .ab-update-failed { color: var(--dsw-alias-state-error-primary); }
@@ -402,8 +428,13 @@ window.__ModuleLoader__.load({
 }
 .ab-railButton .ab-update-dot { top: 4px; right: 4px; }
 @keyframes ab-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@keyframes ab-menu-pop {
+  from { opacity: 0; transform: translateY(8px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
 @media (prefers-reduced-motion: reduce) {
   .ab-button[data-refreshing="true"] .ab-icon { animation: none; }
+  .ab-menu { animation: none; }
 }
 `;
 
@@ -516,6 +547,25 @@ window.__ModuleLoader__.load({
           stroke: '#fff',
           strokeWidth: '1.8',
           strokeLinecap: 'round',
+        }),
+      );
+    }
+
+    /** A small gear that opens the fixed settings panel. */
+    function GearIcon({ size = 14 }) {
+      return h(
+        'svg',
+        {
+          className: 'ab-gear-icon',
+          viewBox: '0 0 24 24',
+          width: size,
+          height: size,
+          'aria-hidden': 'true',
+          focusable: 'false',
+        },
+        h('path', {
+          fill: 'currentColor',
+          d: 'M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z',
         }),
       );
     }
@@ -989,7 +1039,7 @@ window.__ModuleLoader__.load({
     }
 
     function createMenuStore() {
-      let state = { open: false, x: 0, y: 0 };
+      let state = { open: false };
       const listeners = new Set();
 
       const emit = (next) => {
@@ -1007,11 +1057,11 @@ window.__ModuleLoader__.load({
         getSnapshot() {
           return state;
         },
-        open(x, y) {
-          emit({ open: true, x, y });
+        open() {
+          emit({ open: true });
         },
         close() {
-          if (state.open) emit({ ...state, open: false });
+          if (state.open) emit({ open: false });
         },
       };
     }
@@ -1112,18 +1162,6 @@ window.__ModuleLoader__.load({
               onClick: () => {
                 if (!state.refreshing) refresh();
               },
-              onContextMenu: (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                openMenu(event.clientX, event.clientY);
-              },
-              onKeyDown: (event) => {
-                if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
-                  event.preventDefault();
-                  const rect = event.currentTarget.getBoundingClientRect();
-                  openMenu(rect.left, rect.top);
-                }
-              },
             },
             h(CoinIcon, { size: wide ? 16 : 15 }),
             wide
@@ -1168,6 +1206,23 @@ window.__ModuleLoader__.load({
               ? h('span', { className: 'ab-update-dot', 'aria-hidden': 'true' })
               : null,
           ),
+          wide
+            ? h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'ab-gear',
+                  title: t('menu.open'),
+                  'aria-label': t('menu.open'),
+                  'aria-haspopup': 'dialog',
+                  onClick: (event) => {
+                    event.stopPropagation();
+                    openMenu();
+                  },
+                },
+                h(GearIcon, { size: 14 }),
+              )
+            : null,
         ),
       );
     }
@@ -1317,11 +1372,6 @@ window.__ModuleLoader__.load({
         updateClass += ' ab-update-failed';
       }
 
-      const width = 312;
-      const height = 390;
-      const left = Math.max(8, Math.min(menu.x, (globalThis.innerWidth || 1024) - width - 8));
-      const top = Math.max(8, Math.min(menu.y, (globalThis.innerHeight || 768) - height - 8));
-
       return h(
         'div',
         {
@@ -1336,7 +1386,7 @@ window.__ModuleLoader__.load({
           'div',
           {
             className: 'ab-menu',
-            style: { left: `${left}px`, top: `${top}px`, width: `${width}px` },
+            style: { left: '8px', bottom: '64px' },
             role: 'dialog',
             'aria-modal': 'true',
             'aria-label': t('menu.title'),
