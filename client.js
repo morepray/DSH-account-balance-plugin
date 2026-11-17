@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
     /** The account Remote sends this client identity with each Platform read. */
     const CLIENT_VERSION = '0.2.1-rc.5';
     /** Keep this in sync with package.json when publishing a release. */
-    const PLUGIN_VERSION = '1.6.0';
+    const PLUGIN_VERSION = '1.6.1';
     /** Browser-local preference: seconds between automatic balance reads; 0 = off. */
     const INTERVAL_KEY = 'dsh.account-balance.refresh-seconds.v1';
     const DEFAULT_INTERVAL_SECONDS = 60;
@@ -198,13 +198,28 @@ window.__ModuleLoader__.load({
 .ab-usage {
   flex: none;
   max-width: 62%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   color: var(--dsw-alias-label-secondary);
   font-size: 12px;
   line-height: 16px;
   font-variant-numeric: tabular-nums;
+}
+.ab-usage-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ab-usage[data-over="true"] {
+  color: var(--dsw-alias-state-warn-primary);
+  font-weight: 500;
+}
+.ab-warning {
+  flex: none;
+  display: block;
+  color: var(--dsw-alias-state-warn-primary);
 }
 .ab-usage[data-phase="loading"],
 .ab-usage[data-phase="signed-out"] {
@@ -307,6 +322,12 @@ window.__ModuleLoader__.load({
   font-size: 11px;
   line-height: 16px;
 }
+.ab-menu-warn {
+  color: var(--dsw-alias-state-warn-primary);
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 16px;
+}
 .ab-menu-control { flex: none; display: flex; align-items: center; gap: 4px; }
 .ab-menu-input {
   box-sizing: border-box;
@@ -380,70 +401,6 @@ window.__ModuleLoader__.load({
   box-shadow: 0 0 0 2px var(--dsw-specific-sidebar-fill);
 }
 .ab-railButton .ab-update-dot { top: 4px; right: 4px; }
-.ab-usage[data-over="true"] {
-  color: var(--dsw-alias-state-error-primary);
-  font-weight: 500;
-}
-.ab-button[data-over="true"] {
-  box-shadow: inset 0 0 0 1.5px var(--dsw-alias-state-error-primary);
-}
-.ab-alert-layer { position: fixed; inset: 0; z-index: 1100; pointer-events: none; }
-.ab-alert {
-  position: fixed;
-  left: 16px;
-  bottom: 16px;
-  box-sizing: border-box;
-  width: min(340px, calc(100vw - 32px));
-  padding: 12px;
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  border: .5px solid var(--dsw-alias-state-error-primary);
-  border-radius: 12px;
-  background: var(--dsw-alias-bg-overlay);
-  box-shadow: var(--dsw-elevation-prominent);
-  color: var(--dsw-alias-label-primary);
-  font-family: inherit;
-  pointer-events: auto;
-}
-.ab-alert-icon {
-  flex: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--dsw-alias-state-error-primary);
-  color: var(--dsw-alias-bg-overlay);
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 20px;
-  text-align: center;
-}
-.ab-alert-copy { flex: 1; min-width: 0; }
-.ab-alert-title { font-size: 13px; font-weight: 500; line-height: 18px; }
-.ab-alert-body {
-  margin-top: 2px;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  line-height: 17px;
-}
-.ab-alert-dismiss {
-  flex: none;
-  height: 26px;
-  padding: 0 8px;
-  border: .5px solid var(--dsw-alias-border-l2);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
-  font: inherit;
-  font-size: 12px;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.ab-alert-dismiss:hover { background: var(--dsw-alias-bg-layer-2); }
-.ab-alert-dismiss:focus-visible {
-  outline: 2px solid var(--dsw-alias-brand-primary);
-  outline-offset: 1px;
-}
 @keyframes ab-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 @media (prefers-reduced-motion: reduce) {
   .ab-button[data-refreshing="true"] .ab-icon { animation: none; }
@@ -526,6 +483,39 @@ window.__ModuleLoader__.load({
           strokeWidth: '1',
           strokeLinecap: 'round',
           strokeLinejoin: 'round',
+        }),
+      );
+    }
+
+    /** A small amber warning triangle used inline beside the daily spend. */
+    function WarningIcon({ size = 12 }) {
+      return h(
+        'svg',
+        {
+          className: 'ab-warning',
+          viewBox: '0 0 16 16',
+          width: size,
+          height: size,
+          'aria-hidden': 'true',
+          focusable: 'false',
+        },
+        h('path', {
+          d: 'M7.1 2.25a1 1 0 0 1 1.8 0l5.35 9.7a1 1 0 0 1-.9 1.5H2.65a1 1 0 0 1-.9-1.5l5.35-9.7Z',
+          fill: 'currentColor',
+        }),
+        h('path', {
+          d: 'M8 5.9v3.7',
+          fill: 'none',
+          stroke: 'var(--dsw-specific-sidebar-fill, #fff)',
+          strokeWidth: '1.6',
+          strokeLinecap: 'round',
+        }),
+        h('path', {
+          d: 'M8 11.6h.01',
+          fill: 'none',
+          stroke: 'var(--dsw-specific-sidebar-fill, #fff)',
+          strokeWidth: '1.8',
+          strokeLinecap: 'round',
         }),
       );
     }
@@ -858,10 +848,6 @@ window.__ModuleLoader__.load({
         if (over) maybeAlert(cost, state.usageCurrency, threshold);
       };
 
-      const dismissAlert = () => {
-        if (state.alert) emit({ alert: null });
-      };
-
       const stream = ctx.remote.$stream({
         name: 'account-balance',
         open: (signal) => ctx.remote.account.watch(signal),
@@ -925,7 +911,6 @@ window.__ModuleLoader__.load({
         },
         setIntervalSeconds,
         setAlertThreshold,
-        dismissAlert,
       };
     }
 
@@ -1124,7 +1109,6 @@ window.__ModuleLoader__.load({
                 : undefined,
               'data-phase': phase,
               'data-refreshing': state.refreshing ? 'true' : undefined,
-              'data-over': overAlert ? 'true' : undefined,
               onClick: () => {
                 if (!state.refreshing) refresh();
               },
@@ -1164,7 +1148,8 @@ window.__ModuleLoader__.load({
                         'data-error': state.usageError && state.usagePhase === 'ready' ? 'true' : undefined,
                         'data-over': overAlert ? 'true' : undefined,
                       },
-                      usageText,
+                      h('span', { className: 'ab-usage-value' }, usageText),
+                      overAlert ? h(WarningIcon, { size: 12 }) : null,
                     ),
                   ),
                 )
@@ -1187,7 +1172,8 @@ window.__ModuleLoader__.load({
       );
     }
 
-    function UsageAlert({ t, subscribe, getSnapshot, dismissAlert }) {
+    /** Sends the optional desktop notification; the in-app warning is inline in the card. */
+    function UsageAlert({ t, subscribe, getSnapshot }) {
       const state = React.useSyncExternalStore(subscribe, getSnapshot);
       const alert = state.alert;
       const notifiedRef = React.useRef('');
@@ -1195,14 +1181,8 @@ window.__ModuleLoader__.load({
       React.useEffect(() => {
         if (!alert) {
           notifiedRef.current = '';
-          return undefined;
+          return;
         }
-        const timer = setTimeout(() => dismissAlert(), 30000);
-        return () => clearTimeout(timer);
-      }, [alert, dismissAlert]);
-
-      React.useEffect(() => {
-        if (!alert) return;
         const key = `${alert.date}:${alert.threshold}`;
         if (notifiedRef.current === key) return;
         try {
@@ -1217,34 +1197,11 @@ window.__ModuleLoader__.load({
           });
           notifiedRef.current = key;
         } catch {
-          // Desktop notifications are optional; the in-app alert still works.
+          // Desktop notifications are optional; the inline warning still works.
         }
       }, [alert, t]);
 
-      if (!alert) return null;
-      const currency = symbolFor(alert.currency);
-      const cost = formatBalance(String(alert.cost), currency);
-      const threshold = formatBalance(String(alert.threshold), currency);
-      return h(
-        'div',
-        { className: 'ab-alert-layer' },
-        h(
-          'div',
-          { className: 'ab-alert', role: 'alert' },
-          h('span', { className: 'ab-alert-icon', 'aria-hidden': 'true' }, '!'),
-          h(
-            'div',
-            { className: 'ab-alert-copy' },
-            h('div', { className: 'ab-alert-title' }, t('alert.title')),
-            h('div', { className: 'ab-alert-body' }, t('alert.body', { cost, threshold })),
-          ),
-          h(
-            'button',
-            { type: 'button', className: 'ab-alert-dismiss', onClick: dismissAlert },
-            t('alert.dismiss'),
-          ),
-        ),
-      );
+      return null;
     }
 
     function BalanceMenu({
@@ -1464,7 +1421,7 @@ window.__ModuleLoader__.load({
                 overAlert
                   ? h(
                       'div',
-                      { className: 'ab-menu-error' },
+                      { className: 'ab-menu-warn' },
                       t('alert.over', { threshold: thresholdText }),
                     )
                   : null,
@@ -1651,7 +1608,6 @@ window.__ModuleLoader__.load({
             inject: () => ({
               subscribe: store.subscribe,
               getSnapshot: store.getSnapshot,
-              dismissAlert: store.dismissAlert,
             }),
           },
           UsageAlert,
