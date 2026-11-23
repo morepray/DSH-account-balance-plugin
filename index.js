@@ -166,7 +166,7 @@ async function readUsage(account, start, end, tz) {
 async function readRemotePackage() {
   // raw.githubusercontent.com is not subject to the API's hourly rate limit.
   try {
-    const response = await fetch(REMOTE_RAW_PACKAGE_URL, {
+    const response = await fetch(`${REMOTE_RAW_PACKAGE_URL}?t=${Date.now()}`, {
       headers: {
         'cache-control': 'no-cache',
         'user-agent': 'DSH-account-balance-plugin',
