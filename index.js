@@ -18,7 +18,8 @@ const USAGE_PATH = '/account-balance/usage';
 const UPDATE_PATH = '/account-balance/update';
 const COST_PATH = '/api/v0/usage/by_api_key/cost';
 const REPO_URL = 'https://github.com/morepray/DSH-account-balance-plugin';
-const REMOTE_PACKAGE_URL = 'https://api.github.com/repos/morepray/DSH-account-balance-plugin/contents/package.json?ref=main';
+const REMOTE_RAW_PACKAGE_URL = 'https://raw.githubusercontent.com/morepray/DSH-account-balance-plugin/main/package.json';
+const REMOTE_API_PACKAGE_URL = 'https://api.github.com/repos/morepray/DSH-account-balance-plugin/contents/package.json?ref=main';
 const CACHE_TTL_MS = 30_000;
 const REQUEST_TIMEOUT_MS = 15_000;
 const UPDATE_TIMEOUT_MS = 10_000;
@@ -162,14 +163,28 @@ async function readUsage(account, start, end, tz) {
   return value;
 }
 
-async function readUpdate(force) {
-  if (!force && updateCache !== undefined && Date.now() - updateCache.at < CACHE_TTL_MS) {
-    return updateCache.value;
+async function readRemotePackage() {
+  // raw.githubusercontent.com is not subject to the API's hourly rate limit.
+  try {
+    const response = await fetch(REMOTE_RAW_PACKAGE_URL, {
+      headers: {
+        'cache-control': 'no-cache',
+        'user-agent': 'DSH-account-balance-plugin',
+      },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(UPDATE_TIMEOUT_MS),
+    });
+    if (response.status === 200) {
+      const remote = await response.json();
+      if (typeof remote?.version === 'string' && remote.version !== '') return remote;
+    }
+  } catch {
+    // Fall through to the API endpoint.
   }
 
-  let response;
+  // Fallback for networks where raw.githubusercontent.com is unavailable.
   try {
-    response = await fetch(REMOTE_PACKAGE_URL, {
+    const response = await fetch(REMOTE_API_PACKAGE_URL, {
       headers: {
         accept: 'application/vnd.github+json',
         'cache-control': 'no-cache',
@@ -178,25 +193,25 @@ async function readUpdate(force) {
       redirect: 'manual',
       signal: AbortSignal.timeout(UPDATE_TIMEOUT_MS),
     });
-  } catch {
-    return { ok: false, code: 'network' };
-  }
-  if (response.status !== 200) return { ok: false, code: 'http' };
-
-  let remote;
-  try {
+    if (response.status !== 200) return null;
     const body = await response.json();
-    if (body?.encoding !== 'base64' || typeof body.content !== 'string') {
-      return { ok: false, code: 'invalid' };
-    }
+    if (body?.encoding !== 'base64' || typeof body.content !== 'string') return null;
     const text = Buffer.from(body.content.replace(/\s+/g, ''), 'base64').toString('utf8');
-    remote = JSON.parse(text);
+    const remote = JSON.parse(text);
+    if (typeof remote?.version === 'string' && remote.version !== '') return remote;
   } catch {
-    return { ok: false, code: 'invalid' };
+    return null;
   }
-  if (typeof remote?.version !== 'string' || remote.version === '') {
-    return { ok: false, code: 'invalid' };
+  return null;
+}
+
+async function readUpdate(force) {
+  if (!force && updateCache !== undefined && Date.now() - updateCache.at < CACHE_TTL_MS) {
+    return updateCache.value;
   }
+
+  const remote = await readRemotePackage();
+  if (!remote) return { ok: false, code: 'network' };
 
   const value = {
     ok: true,

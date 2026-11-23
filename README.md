@@ -141,7 +141,7 @@ GitHub 安装的版本更新时：
 - 今日已用使用 Platform 的私有 `usage/by_api_key/cost` 接口，Platform 改版后可能失效。
 - 今日口径按浏览器本地时区 00:00 起算。
 - 自动刷新会增加少量网络请求；可在设置菜单中调大间隔或设为 0。
-- 检查更新使用 GitHub API（未登录时受速率限制）；检查失败不影响余额和今日用量。
+- 检查更新优先读取 `raw.githubusercontent.com` 上的 `package.json`，不占用 GitHub API 配额；仅在 raw 不可用时回退到 GitHub API。检查失败不影响余额和今日用量。
 - 仅配置 API Key、没有登录 DeepSeek 账户时，会显示“未登录”或读取失败。
 
 ## 开发
