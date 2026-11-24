@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
     /** The account Remote sends this client identity with each Platform read. */
     const CLIENT_VERSION = '0.2.1-rc.5';
     /** Keep this in sync with package.json when publishing a release. */
-    const PLUGIN_VERSION = '1.7.1';
+    const PLUGIN_VERSION = '1.7.2';
     /** Browser-local preference: seconds between automatic balance reads; 0 = off. */
     const INTERVAL_KEY = 'dsh.account-balance.refresh-seconds.v1';
     const DEFAULT_INTERVAL_SECONDS = 60;
@@ -47,8 +47,8 @@ window.__ModuleLoader__.load({
       'balance.everySeconds': 'every {seconds}s',
       'balance.refreshHint': 'Click to refresh',
       'balance.contextHint': 'Click the coin for settings and updates',
-      'opacity.title': 'Background opacity',
-      'opacity.description': 'Character image visibility; 0 hides the image, 100 shows it fully.',
+      'opacity.title': 'Character background',
+      'opacity.description': 'Character background visibility; 0 shows a plain white card, 100 shows it fully.',
       'opacity.invalid': 'Enter a whole number from 0 to 100.',
       'balance.aria': 'Account balance',
       'alert.title': 'Daily spend alert',
@@ -101,8 +101,8 @@ window.__ModuleLoader__.load({
       'balance.everySeconds': '每 {seconds} 秒',
       'balance.refreshHint': '点击刷新',
       'balance.contextHint': '点击硬币打开设置与更新',
-      'opacity.title': '背景透明度',
-      'opacity.description': '角色背景的可见度；0 为不显示图片，100 为完整显示。',
+      'opacity.title': '角色背景',
+      'opacity.description': '角色背景的可见度；0 为纯白卡片，100 为完整显示。',
       'opacity.invalid': '请输入 0–100 之间的整数。',
       'balance.aria': '账户余额',
       'alert.title': '今日用量报警',
@@ -340,6 +340,81 @@ window.__ModuleLoader__.load({
 }
 .ab-button[data-phase="error"] .ab-icon { border-color: rgba(255, 158, 158, .60); }
 .ab-button[data-refreshing="true"] .ab-icon { animation: ab-pulse 1s ease-in-out infinite; }
+/* At 0% the character layer is gone, so use a readable light card instead of leaving the dark overlay. */
+.ab-root[data-wide="true"][data-plain="true"] .ab-button {
+  border-color: #e2e8f0;
+  background: #fff;
+  box-shadow:
+    0 6px 18px rgba(15, 23, 42, .08),
+    inset 0 1px 0 rgba(255, 255, 255, .96);
+  color: #0f172a;
+  backdrop-filter: none;
+}
+.ab-root[data-wide="true"][data-plain="true"] .ab-button::before,
+.ab-root[data-wide="true"][data-plain="true"] .ab-button::after {
+  display: none;
+}
+.ab-root[data-wide="true"][data-plain="true"] .ab-button:hover {
+  border-color: #cbd5e1;
+  box-shadow:
+    0 8px 22px rgba(15, 23, 42, .10),
+    inset 0 1px 0 #fff;
+  filter: none;
+}
+.ab-root[data-wide="true"][data-plain="true"] .ab-button:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary, #2563eb);
+  outline-offset: -2px;
+}
+.ab-root[data-wide="true"][data-plain="true"] .ab-label {
+  color: #64748b;
+  text-shadow: none;
+}
+.ab-root[data-wide="true"][data-plain="true"] .ab-amount {
+  color: #0f172a;
+  text-shadow: none;
+}
+.ab-root[data-wide="true"][data-plain="true"] .ab-usage {
+  color: #475569;
+  text-shadow: none;
+}
+.ab-root[data-wide="true"][data-plain="true"] .ab-usage[data-phase="loading"],
+.ab-root[data-wide="true"][data-plain="true"] .ab-usage[data-phase="signed-out"] {
+  color: #94a3b8;
+}
+.ab-root[data-wide="true"][data-plain="true"] .ab-usage[data-phase="error"] {
+  color: #dc2626;
+}
+.ab-root[data-wide="true"][data-plain="true"] .ab-usage[data-over="true"],
+.ab-root[data-wide="true"][data-plain="true"] .ab-usage[data-error="true"] {
+  color: #b45309;
+}
+.ab-root[data-wide="true"][data-plain="true"] .ab-amount[data-phase="loading"],
+.ab-root[data-wide="true"][data-plain="true"] .ab-amount[data-phase="signed-out"] {
+  color: #94a3b8;
+}
+.ab-root[data-wide="true"][data-plain="true"] .ab-amount[data-phase="error"] {
+  color: #dc2626;
+}
+.ab-root[data-wide="true"][data-plain="true"] .ab-warning {
+  color: #d97706;
+}
+.ab-root[data-wide="true"][data-plain="true"] .ab-coinButton {
+  color: #b45309;
+}
+.ab-root[data-wide="true"][data-plain="true"] .ab-coinButton:hover {
+  background: rgba(180, 83, 9, .10);
+}
+.ab-root[data-wide="true"][data-plain="true"] .ab-coinButton:focus-visible {
+  outline-color: var(--dsw-alias-brand-primary, #2563eb);
+}
+.ab-root[data-wide="true"][data-plain="true"] .ab-coinButton .ab-icon {
+  border-color: rgba(180, 83, 9, .28);
+  background: rgba(245, 197, 66, .14);
+  box-shadow: inset 0 1px 0 #fff;
+}
+.ab-root[data-wide="true"][data-plain="true"] .ab-update-dot {
+  box-shadow: 0 0 0 2px #fff;
+}
 .ab-railButton {
   width: 36px;
   height: 36px;
@@ -1271,6 +1346,7 @@ window.__ModuleLoader__.load({
           {
             className: 'ab-root',
             'data-wide': wide ? 'true' : 'false',
+            'data-plain': wide && state.heroOpacity === 0 ? 'true' : undefined,
             style: { '--ab-hero-opacity': (state.heroOpacity / 100).toFixed(2) },
           },
           h(
